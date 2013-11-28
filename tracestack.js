@@ -130,6 +130,8 @@
             },
 
             opera11: function(e) {
+                if (!e.stacktrace) throw new TypeError();
+
                 var ANON = '{anonymous}', lineRE = /^.*line (\d+), column (\d+)(?: in (.+))? in (\S+):$/;
                 var lines = e.stacktrace.split('\n'), result = [];
 
@@ -225,11 +227,12 @@
         /** @expose */
         Class.create = function(options) {
             // Handle options internally, so that each StackTracer may have it owns options.
-            var guess = !!options.guess;
+            var cfg = options || {},
+                guess = !!cfg.guess,
                 // Precache mode for each new object.
-                mode = ((!!options.mode) && (!(options.mode in formatters)))
-                     ? sMode
-                     : options.mode,
+                mode = ((!!cfg.mode) && (cfg.mode in formatters))
+                     ? cfg.mode
+                     : sMode,
                 // Precaches the formatter for each new object.
                 formatter = (mode === sMode)
                           ? sFormatter
@@ -237,11 +240,13 @@
 
             /** @expose */
             this.run = function(ex) {
-                var err = !!ex ? ex : createException(),
-                    out = formatter(mode !== 'other' ? err : arguments.callee).slice(3);
+                var out,
+                    err = !!ex ? ex : createException();
 
                 try {
-                    out = out.map(function(v, k, a) { return new StackInfo(v, guess) })
+                    out = formatter(mode !== 'other' ? err : arguments.callee)
+                            .slice(3)
+                            .map(function(v, k, a) { return new StackInfo(v, guess) });
                     // Allow user to get a user-readable string
                     out.toString = function() { return this.join('\n') };
                 }
@@ -262,10 +267,11 @@
                 if (!(property in context))
                     throw new TypeError('Cannot read property "' + property + '" of ' + context);
 
-                var origin = context[property],
+                var tracer = this,
+                    origin = context[property],
                     fnOrigin = 'function' === typeof origin ? origin : function(val) { return origin };
                 context[property] = function trace() {
-                    callback.call(this, traceStack(options).slice(1));
+                    callback.call(this, tracer.run());
                     return context[property]._instrumented.apply(this, arguments);
                 };
                 context[property]._instrumented = fnOrigin;
