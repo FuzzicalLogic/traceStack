@@ -238,7 +238,7 @@
             /** @expose */
             this.run = function(ex) {
                 var err = !!ex ? ex : createException(),
-                    out = formatter[mode](mode !== 'other' ? err : arguments.callee).slice(3);
+                    out = formatter(mode !== 'other' ? err : arguments.callee).slice(3);
 
                 try {
                     out = out.map(function(v, k, a) { return new StackInfo(v, guess) })
