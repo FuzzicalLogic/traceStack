@@ -11,8 +11,16 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		tracestack.min.js = tracestack.min.js
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{644D595B-A61C-4A78-A0C9-6A2B02AF87B9}"
+	ProjectSection(SolutionItems) = preProject
+		test\browser.html = test\browser.html
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{644D595B-A61C-4A78-A0C9-6A2B02AF87B9} = {753132C2-9959-46A6-997A-6282A6060ED1}
 	EndGlobalSection
 EndGlobal
