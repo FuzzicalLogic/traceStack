@@ -80,21 +80,9 @@
     function traceStack(options) {
         options = options || { guess: true };
         var ex = options.e || null,
-            guess = !!options.guess,
-            mode = ((!!options.mode) && (!(options.mode in formatters))) ? undefined : options.mode,
-            p = new traceStack.StackTracer(),
-            result = p.run(ex, mode).slice(3);
+            result = new traceStack.StackTracer(options).run(ex);
 
-        result = (guess) ? guessAnonymousFunctions(result) : result;
-        // Convert to an Array of Objects
-        try {
-            result = result.map(function(v, k, a) { return new StackInfo(v) })
-            // Allow user to get a user-readable string
-            result.toString = function() { return this.join('\n') };
-        }
-        catch (e) {
-            result = 'traceStack may not be configured to work properly with this environment';
-        }
+        //result = (p.guess) ? guessAnonymousFunctions(result) : result;
 
         return result;
     }
@@ -235,20 +223,32 @@
             sFormatter = formatters[sMode];
 
         /** @expose */
-        Class.create = function() {
-            /** Precaches the formatter for each new object. */
-            var formatter = sFormatter;
-            var contexts = [], origins = [];
+        Class.create = function(options) {
+            // Handle options internally, so that each StackTracer may have it owns options.
+            var guess = !!options.guess;
+                // Precache mode for each new object.
+                mode = ((!!options.mode) && (!(options.mode in formatters)))
+                     ? sMode
+                     : options.mode,
+                // Precaches the formatter for each new object.
+                formatter = (mode === sMode)
+                          ? sFormatter
+                          : formatters[mode];
 
             /** @expose */
-            this.run = function(err, mode) {
-                err = !!err ? err : createException();
+            this.run = function(ex) {
+                var err = !!ex ? ex : createException(),
+                    out = formatter[mode](mode !== 'other' ? err : arguments.callee).slice(3);
 
-                return !!!mode
-                    ? formatter(err)
-                    : mode === 'other'
-                        ? formatters.other(arguments.callee)
-                        : formatters[mode](err);
+                try {
+                    out = out.map(function(v, k, a) { return new StackInfo(v, guess) })
+                    // Allow user to get a user-readable string
+                    out.toString = function() { return this.join('\n') };
+                }
+                catch (e) {
+                    out = 'traceStack may not be configured to work properly with this environment';
+                }
+                return out;
             };
         };
 
@@ -257,7 +257,7 @@
             /** @expose */
             'class': Class,
             /** @expose */
-            'trace': function(context, property, callback) {
+            'trace': function(context, property, callback, options) {
                 context = context || global;
                 if (!(property in context))
                     throw new TypeError('Cannot read property "' + property + '" of ' + context);
@@ -265,7 +265,7 @@
                 var origin = context[property],
                     fnOrigin = 'function' === typeof origin ? origin : function(val) { return origin };
                 context[property] = function trace() {
-                    callback.call(this, traceStack({ guess: false }).slice(1));
+                    callback.call(this, traceStack(options).slice(1));
                     return context[property]._instrumented.apply(this, arguments);
                 };
                 context[property]._instrumented = fnOrigin;
