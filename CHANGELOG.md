@@ -7,13 +7,20 @@
 * If you add a property to multiple StackTracers, the last will make sure that it was properly unsubscribed from the previous ones. This had the potential to create inifinite loops and even stall the computer.
 * While `trace()` properly checked for existing properties, `stop()` did not. This should result in fewer headaches.
 
+##### Removals
+
+* `guessAnonumousFunctions` was removed as guessing is now done on a per `StackEntry` basis.
+
 ##### Additions
 
 * `limit` is now a working option for IE, Firefox and Chrome. Still need to support Safari and Opera.
+* Function Name guessing may now be performed at a later date. If `guess` === `false`, a temporary method will be added to the `StackEntry` that will allow an external client library to request the guess. This only occurs if the function name is anonymous.
 
 ##### Changes
 
-* `traceStack()` is now simply a short-hand for a single-use `StackTracer`. Usage has not changed. This version has guessing turned off.
+* `StackInfo` was changed to `StackEntry` to match with stacktrace.js development.
+* Function Name guessing was moved into `StackEntry` and now occurs on `create()`. This includes the functions `guessFunctionName()` *(previously guessAnonymousFunction())*, `isSameDomain()` and `findFunctionName()`.
+* `traceStack()` is now simply a short-hand for a single-use `StackTracer`. Usage has not changed.
 * `StackTracer`s (via `new traceStack.StackTracer()`) now accept options and hold them independently from each other. This allows for different properties to be traced with different configurations.
 * Traced Properties now hold a reference to their personal `StackTracer`. (This may change) 
 
