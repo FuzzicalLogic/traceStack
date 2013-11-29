@@ -87,6 +87,48 @@
         return result;
     }
 
+    var StackParser = (function(Class) {
+        /**
+         *
+         */
+        Class.create = function(options) {
+            var myCfg = options || {},
+                key = myCfg.key || 'stack',
+                pre = myCfg.pre || [],
+                parsers = myCfg.parsers || [],
+                post = myCfg.post || function(stack) { return stack; };
+
+            this.parse = myCfg.parse || function(e, limit) {
+                // Must have the specified property
+                if (!e[key]) throw new TypeError();
+
+                // Inline all of the calls (no chance for error)
+                // parse(pre) -> applyLimit -> parse(parsers) -> post(result.split)
+                return post(parsePhase(applyStackLimit(parsePhase(e[key], pre), limit), parsers).split('\n'));
+            }
+        }
+
+        Class.prototype['class'] = Class;
+
+        function applyStackLimit(stack, limit) {
+            return !!!limit ? stack : stack.split(/\r\n|[\n\r\u2028\u2029]/g).slice(0, limit + 1).join('\n');
+        }
+
+        function parsePhase(stack, expressions) {
+            var expr,
+                out = stack,
+                i = -1, max = expressions.length;
+
+            while (++i < max) {
+                expr = expressions[i];
+                out = out.replace(expr[0], !!!expr[1] ? '' : expr[1]);
+            }
+            return out;
+        }
+
+        return Class;
+    }(evilClass('StackParser')));
+
     var /** @const {string} Replacement for anonymous functions.*/
         ANON = '{anonymous}',
         /** @const {RegExp} The proper RegEx for finding new lines. */
@@ -101,42 +143,32 @@
          * @enum {function}
          */
         formatters = {
-            chrome: function(e, limit) {
-                if (!e.stack) throw new TypeError();
-
-                return applyStackLimit((e.stack + '\n').replace(/^[\s\S]+?\s+at\s+/, ' at '), limit)
-                    .replace(/^\s+(at eval )?at\s+/gm, '')
-                    .replace(/^([^\(]+?)([\n$])/gm, ANON + '() ($1)$2')
-                    .replace(/^Object.<anonymous>\s*\(([^\)]+)\)/gm, ANON + '() ($1)')
-                    .replace(/^(.+) \((.+)\)$/gm, '$1@$2')
-                    .split('\n')
-                    .slice(0, -1);
-            },
-
-            safari: function(e, limit) {
-                if (!e.stack) throw new TypeError();
-
-                return applyStackLimit(e.stack.replace(/\[native code\]\n/m, '').replace(/^(?=\w+Error\:).*$\n/m, ''), limit)
-                    .replace(/^@/gm, ANON + '()@').split('\n');
-            },
-
-            ie: function(e, limit) {
-                if (!e.stack) throw new TypeError();
-
-                return applyStackLimit(e.stack.replace(/^\s*at\s+(.*)$/gm, '$1'), limit)
-                    .replace(/^Anonymous function\s+/gm, ANON + '() ')
-                    .replace(/^(.+)\s+\((.+)\)$/gm, '$1@$2')
-                    .split('\n')
-                    .slice(1);
-            },
-
-            firefox: function(e, limit) {
-                if (!e.stack) throw new TypeError();
-
-                return applyStackLimit(e.stack.replace(/(?:\n@:0)?\s+$/m, ''), limit)
-                    .replace(/^(?:\((\S*)\))?@/gm, ANON + '($1)@')
-                    .split('\n').map(function(v, k, a) { return v + ':'; });
-            },
+            chrome: new StackParser({
+                pre: [[/^[\s\S]+?\s+at\s+/, ' at ']],
+                parsers: [
+                    [/^\s+(at eval )?at\s+/gm],
+                    [/^([^\(]+?)([\n$])/gm, ANON + '() ($1)$2'],
+                    [/^Object.<anonymous>\s*\(([^\)]+)\)/gm, ANON + '() ($1)'],
+                    [/^(.+) \((.+)\)$/gm, '$1@$2']
+                ],
+            }),
+            safari: new StackParser({
+                pre: [[/\[native code\]\n/m] , [/^(?=\w+Error\:).*$\n/m]],
+                parsers: [[/^@/gm, ANON + '()@']]
+            }),
+            ie: new StackParser({
+                pre: [[/^\s*at\s+(.*)$/gm, '$1']],
+                parsers: [
+                    [/^Anonymous function\s+/gm, ANON + '() '],
+                    [/^(.+)\s+\((.+)\)$/gm, '$1@$2']
+                ],
+                post: function(stack) { return stack.slice(1) }
+            }),
+            firefox: new StackParser({
+                pre: [[/(?:\n@:0)?\s+$/m]],
+                parsers: [[/^(?:\((\S*)\))?@/gm, ANON + '($1)@']],
+                post: function(stack){ return stack.map(function(v, k, a) { return v + ':'; }) }
+            }),
 
             opera11: function(e, limit) {
                 if (!e.stacktrace) throw new TypeError();
@@ -196,7 +228,7 @@
 
                 // Initialize loop vars
                 var i = -2, max = lines.length;
-                while (++(++i) < max) {
+                while ((i += 2) < max) {
                     // Account for limit option.
                     if (!!limit && results.length < limit) break;
 
@@ -222,7 +254,7 @@
 
                 // Initialize loop vars
                 var i = -2, max = lines.length;
-                while (++(++i) < max) {
+                while ((i += 2) < max) {
                     // Account for limit option.
                     if (!!limit && results.length < limit) break;
 
@@ -245,11 +277,7 @@
             }
         };
 
-    function applyStackLimit(stack, limit) {
-        return !!!limit
-             ? stack
-             : stack.split(NEW_LINES).slice(0, limit + 1).join('\n');
-    }
+
 
     /** 
      * An automatic tracer to get a stack trace each time a given object property 
@@ -305,7 +333,7 @@
                             : createException();
 
                 try {
-                    out = myFormatter(err, limit)
+                    out = ('function' === typeof myFormatter ? myFormatter(err, limit) : myFormatter.parse(err, limit))
                             .slice(shift)
                             .map(function(v, k, a) { return new StackInfo(v, myGuess) });
                     // Allow user to get a user-readable string
@@ -313,6 +341,7 @@
                 }
                 catch (e) {
                     out = 'traceStack may not be configured to work properly with this environment';
+                    console.log(e.stack);
                 }
                 return out;
             };
