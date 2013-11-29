@@ -3,8 +3,9 @@
 ##### Fixes
 
 * Firefox, Chrome and IE are currently fixed and produce the same line. Still need to check Opera and Safari, etc.
-* Traced functions return the same line as traceStack.
-* If you add a property to multiple StackTracers, the last will make sure that it was properly unsubscribed from the previous ones. This had the potential to create inifinite loops.
+* Traced functions now return the same line as `traceStack()`. (need to recheck after limit) Hopefully, this eases somebody's confusion.
+* If you add a property to multiple StackTracers, the last will make sure that it was properly unsubscribed from the previous ones. This had the potential to create inifinite loops and even stall the computer.
+* While `trace()` properly checked for existing properties, `stop()` did not. This should result in fewer headaches.
 
 ##### Additions
 
@@ -12,9 +13,9 @@
 
 ##### Changes
 
-* traceStack is now simply a short-hand for a single-use StackTracer. This version has guessing turned off.
-* StackTracers now accept options and hold them independently from each other. This allows for different properties to be traced with different configurations.
-* Properties now hold a reference to their personal tracer. (This may change) 
+* `traceStack()` is now simply a short-hand for a single-use `StackTracer`. Usage has not changed. This version has guessing turned off.
+* `StackTracer`s (via `new traceStack.StackTracer()`) now accept options and hold them independently from each other. This allows for different properties to be traced with different configurations.
+* Traced Properties now hold a reference to their personal `StackTracer`. (This may change) 
 
 ### Initial Version (0.1)
 
@@ -22,25 +23,25 @@ The project underwent a significant rewrite. Due to the nature of the usage chan
 
 ##### Fixes
 
-* Fix: Errored in a local browser environment that was not a localhost (i.e. file:///)
-* Fix: Output had to re-parsed externally to provide usable information.
-* Fix: When the mode supplied is not an included formatter, defaults to the cached formatter.
-* Fix: The previous printStackTrace.implementation would allow an undefined object member to be traced, but would not allow proper removal. This now properly errors if the property is not defined.
-* Fix: Firefox did not return the same number of 'params' in the string (no column). For consistency, we slightly modify the string by adding a ':' to the end.
+* Errored in a local browser environment that was not a localhost (i.e. file:///)
+* Output had to re-parsed externally to provide usable information.
+* When the mode supplied is not an included formatter, defaults to the cached formatter.
+* The previous printStackTrace.implementation would allow an undefined object member to be traced, but would not allow proper removal. This now properly errors if the property is not defined.
+* Firefox did not return the same number of 'params' in the string (no column). For consistency, we slightly modify the string by adding a ':' to the end.
 
 ##### Changes
 
-* Renamed printStackTrace() to traceStack(). This is more semantically correct and does not imply that the output will be put immediately to a rendering agent.
-* Renamed printStackTrace.implementation to traceStack.StackTracer. This gives the proper descriptive usage of the class.
-* StackTracer.trace() and StackTracer.stop() are now chainable.
-* Moved to evaluated ClassNames (via 'evilClass()').  This allows for more usable V8 console and debugger inspection, even after minification.
-* StackTracer.trace() now allows for any property to be traced, even if it is not a function.
-* StackTracer.stop() will check if the original property was a value or function. If it was not a function, it will return it back to the original value.
+* Renamed `printStackTrace()` to `traceStack()`. This is more semantically correct and does not imply that the output will be put immediately to a rendering agent.
+* Renamed `printStackTrace.implementation` to `traceStack.StackTracer`. This gives the proper descriptive usage of the class.
+* `StackTracer.trace()` and `StackTracer.stop()` are now chainable.
+* Moved to evaluated ClassNames (via `evilClass()`).  This allows for more usable V8 console and debugger inspection, even after minification.
+* `StackTracer.trace()` now allows for any property to be traced, even if it is not a function.
+* `StackTracer.stop()` will check if the original property was a value or function. If it was not a function, it will return it back to the original value.
 
 ##### Additions
 
-* StackInfo Class to allow for object usable stack entries.
-* Configuration option for 'mode'. This allows the user to override the behavior. In general, this should only be used for mocks or unaccounted for environments.
+* `StackInfo` Class to allow for object usable stack entries.
+* Configuration option for `mode`. This allows the user to override the behavior. In general, this should only be used for mocks or unaccounted for environments.
 
 ##### Access and Stability
 

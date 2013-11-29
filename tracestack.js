@@ -87,7 +87,9 @@
         return result;
     }
 
-    var sourceCache = {},
+    var /** @const */
+        ANON = '{anonymous}',
+        sourceCache = {},
         /**
          * Enum for formatting functions based on localized environment (often
          * a browser). All formatters reformat to functionName@fileUrl:line:column.
@@ -97,6 +99,8 @@
          */
         formatters = {
             chrome: function(e, limit) {
+                if (!e.stack) throw new TypeError();
+
                 var results
                 results =  (e.stack + '\n')
                     .replace(/^[\s\S]+?\s+at\s+/, ' at ');
@@ -105,44 +109,49 @@
                     results = results.split(/\r\n|[\n\r\u2028\u2029]/g).slice(0, limit + 1).join('\n');
                 
                 return results.replace(/^\s+(at eval )?at\s+/gm, '')
-                    .replace(/^([^\(]+?)([\n$])/gm, '{anonymous}() ($1)$2')
-                    .replace(/^Object.<anonymous>\s*\(([^\)]+)\)/gm, '{anonymous}() ($1)')
+                    .replace(/^([^\(]+?)([\n$])/gm, ANON + '() ($1)$2')
+                    .replace(/^Object.<anonymous>\s*\(([^\)]+)\)/gm, ANON + '() ($1)')
                     .replace(/^(.+) \((.+)\)$/gm, '$1@$2')
                     .split('\n')
                     .slice(0, -1);
             },
 
             safari: function(e, limit) {
+                if (!e.stack) throw new TypeError();
+
                 var results = e.stack.replace(/\[native code\]\n/m, '')
                     .replace(/^(?=\w+Error\:).*$\n/m, '');
                 if (!!limit)
                     results = results.split(/\r\n|[\n\r\u2028\u2029]/g).slice(0, limit + 1).join('\n');
-                return results.replace(/^@/gm, '{anonymous}()@').split('\n');
+                return results.replace(/^@/gm, ANON + '()@').split('\n');
             },
 
             ie: function(e, limit) {
+                if (!e.stack) throw new TypeError();
+
                 var results = e.stack.replace(/^\s*at\s+(.*)$/gm, '$1');
-                if (!!limit) {
+                if (!!limit)
                     results = results.split(/\r\n|[\n\r\u2028\u2029]/g).results.slice(0, limit + 1).results.join('\n');
-                }
-                return results.replace(/^Anonymous function\s+/gm, '{anonymous}() ')
+                return results.replace(/^Anonymous function\s+/gm, ANON + '() ')
                     .replace(/^(.+)\s+\((.+)\)$/gm, '$1@$2')
                     .split('\n')
                     .slice(1);
             },
 
             firefox: function(e, limit) {
+                if (!e.stack) throw new TypeError();
+
                 var results = e.stack.replace(/(?:\n@:0)?\s+$/m, '');
                 if (!!limit)
                     results = results.split(/\r\n|[\n\r\u2028\u2029]/g).slice(0, limit + 1).join('\n');
-                return results.replace(/^(?:\((\S*)\))?@/gm, '{anonymous}($1)@')
+                return results.replace(/^(?:\((\S*)\))?@/gm, ANON + '($1)@')
                     .split('\n').map(function(v, k, a) { return v + ':'; });
             },
 
             opera11: function(e, limit) {
                 if (!e.stacktrace) throw new TypeError();
 
-                var ANON = '{anonymous}', lineRE = /^.*line (\d+), column (\d+)(?: in (.+))? in (\S+):$/;
+                var lineRE = /^.*line (\d+), column (\d+)(?: in (.+))? in (\S+):$/;
                 var lines = e.stacktrace.split('\n'), result = [];
 
                 for (var i = 0, len = lines.length; i < len; i += 2) {
@@ -159,11 +168,20 @@
             },
 
             opera10b: function(e, limit) {
-                var lineRE = /^(.*)@(.+):(\d+)$/;
-                var lines = e.stacktrace.split('\n'), result = [];
+                if (!e.stacktrace) throw new TypeError();
 
-                for (var i = 0, len = lines.length; i < len; i++) {
-                    var match = lineRE.exec(lines[i]);
+                var match,
+                    results = [],
+                    lineRE = /^(.*)@(.+):(\d+)$/,
+                    lines = e.stacktrace.split('\n');
+
+                // Initialize loop vars
+                var i = -1, max = lines.length;
+                while (++i < max) {
+                    // Account for limit option.
+                    if (!!limit && results.length < limit) break;
+
+                    match = lineRE.exec(lines[i]);
                     if (match) {
                         var fnName = match[1] ? (match[1] + '()') : "global code";
                         result.push(fnName + '@' + match[2] + ':' + match[3]);
@@ -174,11 +192,20 @@
             },
 
             opera10a: function(e, limit) {
-                var ANON = '{anonymous}', lineRE = /Line (\d+).*script (?:in )?(\S+)(?:: In function (\S+))?$/i;
-                var lines = e.stacktrace.split('\n'), result = [];
+                if (!e.stacktrace) throw new TypeError();
 
-                for (var i = 0, len = lines.length; i < len; i += 2) {
-                    var match = lineRE.exec(lines[i]);
+                var match,
+                    result = [],
+                    lineRE = /Line (\d+).*script (?:in )?(\S+)(?:: In function (\S+))?$/i,
+                    lines = e.stacktrace.split('\n');
+
+                // Initialize loop vars
+                var i = -2, max = lines.length;
+                while (++(++i) < max) {
+                    // Account for limit option.
+                    if (!!limit && results.length < limit) break;
+
+                    match = lineRE.exec(lines[i]);
                     if (match) {
                         var fnName = match[3] || ANON;
                         result.push(fnName + '()@' + match[2] + ':' + match[1] + ' -- ' + lines[i + 1].replace(/^\s+/, ''));
@@ -189,10 +216,19 @@
             },
 
             opera9: function(e, limit) {
-                var ANON = '{anonymous}', lineRE = /Line (\d+).*script (?:in )?(\S+)/i;
-                var lines = e.message.split('\n'), result = [];
+                if (!e.message) throw new TypeError();
 
-                for (var i = 2, len = lines.length; i < len; i += 2) {
+                var match,
+                    result = [],
+                    lines = e.message.split('\n'),
+                    lineRE = /Line (\d+).*script (?:in )?(\S+)/i;
+
+                // Initialize loop vars
+                var i = -2, max = lines.length;
+                while (++(++i) < max) {
+                    // Account for limit option.
+                    if (!!limit && results.length < limit) break;
+
                     var match = lineRE.exec(lines[i]);
                     if (match) {
                         result.push(ANON + '()@' + match[2] + ':' + match[1] + ' -- ' + lines[i + 1].replace(/^\s+/, ''));
@@ -203,7 +239,7 @@
             },
 
             other: function(curr, limit) {
-                var ANON = '{anonymous}', fnRE = /function\s*([\w\-$]+)?\s*\(/i, stack = [], fn, args, maxStackSize = 10;
+                var fnRE = /function\s*([\w\-$]+)?\s*\(/i, stack = [], fn, args, maxStackSize = 10;
                 while (curr && curr['arguments'] && stack.length < maxStackSize) {
                     fn = fnRE.test(curr.toString()) ? RegExp.$1 || ANON : ANON;
                     args = Array.prototype.slice.call(curr['arguments'] || []);
@@ -488,8 +524,7 @@
         // location is not defined in some local environments
         // AJAX is only supported for the http: protocol
         return typeof location !== "undefined"
-            && (location.protocol === 'http:'
-            || location.protocol === 'https:')
+            && (location.protocol === 'http:' || location.protocol === 'https:')
             && url.indexOf(location.hostname) !== 1;
     }
 
