@@ -186,7 +186,7 @@
                     [/^([^\(]+?)([\n$])/gm, ANON + '() ($1)$2'],
                     [/^Object.<anonymous>\s*\(([^\)]+)\)/gm, ANON + '() ($1)'],
                     [/^(.+) \((.+)\)$/gm, '$1@$2']
-                ],
+                ]
             }),
             safari: new StackParser({
                 pre: [[/\[native code\]\n/m], [/^(?=\w+Error\:).*$\n/m]],

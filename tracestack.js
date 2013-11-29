@@ -186,7 +186,7 @@
                     [/^([^\(]+?)([\n$])/gm, ANON + '() ($1)$2'],
                     [/^Object.<anonymous>\s*\(([^\)]+)\)/gm, ANON + '() ($1)'],
                     [/^(.+) \((.+)\)$/gm, '$1@$2']
-                ],
+                ]
             }),
             safari: new StackParser({
                 pre: [[/\[native code\]\n/m] , [/^(?=\w+Error\:).*$\n/m]],
@@ -472,7 +472,7 @@
             /** @expose */this.line = line;
             /** @expose */this.column = col;
 
-            /* @todo Make this async(?) */
+            /** @todo Make this async(?) */
             if (guess && func === ANON+'()') {
                 func = guessFunctionName(this);
             }
