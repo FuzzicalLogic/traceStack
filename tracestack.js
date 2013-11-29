@@ -216,27 +216,25 @@
              *
              * @type {string}
              */
-            sMode = getMode(createException()),
+            ourMode = getMode(createException()),
             /** Caches the Formatter when the class is run. (We can only run in 
              * one browser per instance.)
              *
              * @type {function}
              */
-            sFormatter = formatters[sMode];
+            ourFormatter = formatters[ourMode];
 
         /** @expose */
         Class.create = function(options) {
             // Handle options internally, so that each StackTracer may have it owns options.
-            var cfg = options || {},
-                guess = !!cfg.guess,
-                // Precache mode for each new object.
-                mode = ((!!cfg.mode) && (cfg.mode in formatters))
-                     ? cfg.mode
-                     : sMode,
-                // Precaches the formatter for each new object.
-                formatter = (mode === sMode)
-                          ? sFormatter
-                          : formatters[mode];
+            var myCfg = options || {},
+                myGuess = !!myCfg.guess,
+                myMode = ((!!myCfg.mode) && (myCfg.mode in formatters))
+                     ? myCfg.mode
+                     : ourMode,
+                myFormatter = (myMode === ourMode)
+                          ? ourFormatter
+                          : formatters[myMode];
 
             /** @expose */
             this.run = function(ex) {
@@ -244,9 +242,9 @@
                     err = !!ex ? ex : createException();
 
                 try {
-                    out = formatter(mode !== 'other' ? err : arguments.callee)
+                    out = myFormatter(myMode !== 'other' ? err : arguments.callee)
                             .slice(3)
-                            .map(function(v, k, a) { return new StackInfo(v, guess) });
+                            .map(function(v, k, a) { return new StackInfo(v, myGuess) });
                     // Allow user to get a user-readable string
                     out.toString = function() { return this.join('\n') };
                 }
@@ -255,32 +253,47 @@
                 }
                 return out;
             };
+
         };
 
         /** @expose */
         Class.prototype = {
             /** @expose */
             'class': Class,
-            /** @expose */
-            'trace': function(context, property, callback, options) {
+            /**
+             * @todo Verifiy that this does not create leaks. 
+             * 
+             * @expose 
+             */
+            'trace': function(context, property, callback) {
                 context = context || global;
                 if (!(property in context))
                     throw new TypeError('Cannot read property "' + property + '" of ' + context);
 
-                var tracer = this,
-                    origin = context[property],
-                    fnOrigin = 'function' === typeof origin ? origin : function(val) { return origin };
+                // Make sure to stop any previous StackTracers
+                if (context[property]._tracer)
+                    context[property]._tracer.stop(context, property);
+
+                var prop = context[property],
+                    fnProp = 'function' === typeof prop ? prop : function(val) { return prop };
+
                 context[property] = function trace() {
-                    callback.call(this, tracer.run());
+                    console.log(this);
+                    callback.call(this, context[property]._tracer.run());
                     return context[property]._instrumented.apply(this, arguments);
                 };
-                context[property]._instrumented = fnOrigin;
-                if ('function' !== typeof origin)
-                    context[property]._instrumented.original = origin;
+                context[property]._tracer = this;
+                context[property]._instrumented = fnProp;
+                if ('function' !== typeof prop)
+                    context[property]._instrumented.original = prop;
                 return this;
             },
 
-            /** @expose */
+            /**
+             * @todo Verifiy that this does not create leaks. 
+             * 
+             * @expose 
+             */
             'stop': function(context, property) {
                 var ref, fn = context[property];
                 if ('function' === typeof fn && (ref = fn._instrumented)) {
@@ -349,7 +362,7 @@
          *
          * @constructor
          */
-        Class.create = function(line) {
+        Class.create = function(line, guess) {
             if ('string' !== typeof line && !(line instanceof String))
                 throw new TypeError('New StackInfo instances require a valid string.')
             var tmp = line.split('@'),

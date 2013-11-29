@@ -1,4 +1,17 @@
-### Initial Version
+### Current Development
+
+##### Fixes
+
+* Firefox, Chrome and IE are currently fixed and produce the same line. Still need to check Opera and Safari, etc.
+* Traced functions return the same line as traceStack.
+* Properties now hold a reference to their personal tracer. (This may change) If you add a property to multiple StackTracers, the last will make sure that it was properly unsubscribed from the previous ones. This had the potential to create inifinite loops.
+
+##### Changes
+
+* traceStack is now simply a short-hand for a single-use StackTracer. This version has guessing turned off.
+* StackTracers now accept options and hold them independently from each other. This allows for different properties to be traced with different configurations.
+
+### Initial Version (0.1)
 
 The project underwent a significant rewrite. Due to the nature of the usage changes, the project name was changed. Below is an accounting of all the the changes.
 
