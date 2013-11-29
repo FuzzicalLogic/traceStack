@@ -89,6 +89,8 @@
 
     var /** @const */
         ANON = '{anonymous}',
+        /** @const NEWLINES The proper RegEx for finding new lines. */
+        NEW_LINES = /\r\n|[\n\r\u2028\u2029]/g,
         sourceCache = {},
         /**
          * Enum for formatting functions based on localized environment (often
@@ -106,7 +108,7 @@
                     .replace(/^[\s\S]+?\s+at\s+/, ' at ');
                 // Accounts for a limit, if one was set.
                 if (!!limit) 
-                    results = results.split(/\r\n|[\n\r\u2028\u2029]/g).slice(0, limit + 1).join('\n');
+                    results = results.split(NEW_LINES).slice(0, limit + 1).join('\n');
                 
                 return results.replace(/^\s+(at eval )?at\s+/gm, '')
                     .replace(/^([^\(]+?)([\n$])/gm, ANON + '() ($1)$2')
@@ -122,7 +124,7 @@
                 var results = e.stack.replace(/\[native code\]\n/m, '')
                     .replace(/^(?=\w+Error\:).*$\n/m, '');
                 if (!!limit)
-                    results = results.split(/\r\n|[\n\r\u2028\u2029]/g).slice(0, limit + 1).join('\n');
+                    results = results.split(NEW_LINES).slice(0, limit + 1).join('\n');
                 return results.replace(/^@/gm, ANON + '()@').split('\n');
             },
 
@@ -131,7 +133,7 @@
 
                 var results = e.stack.replace(/^\s*at\s+(.*)$/gm, '$1');
                 if (!!limit)
-                    results = results.split(/\r\n|[\n\r\u2028\u2029]/g).results.slice(0, limit + 1).results.join('\n');
+                    results = results.split(NEW_LINES).results.slice(0, limit + 1).results.join('\n');
                 return results.replace(/^Anonymous function\s+/gm, ANON + '() ')
                     .replace(/^(.+)\s+\((.+)\)$/gm, '$1@$2')
                     .split('\n')
@@ -143,7 +145,7 @@
 
                 var results = e.stack.replace(/(?:\n@:0)?\s+$/m, '');
                 if (!!limit)
-                    results = results.split(/\r\n|[\n\r\u2028\u2029]/g).slice(0, limit + 1).join('\n');
+                    results = results.split(NEW_LINES).slice(0, limit + 1).join('\n');
                 return results.replace(/^(?:\((\S*)\))?@/gm, ANON + '($1)@')
                     .split('\n').map(function(v, k, a) { return v + ':'; });
             },
@@ -151,16 +153,18 @@
             opera11: function(e, limit) {
                 if (!e.stacktrace) throw new TypeError();
 
-                var lineRE = /^.*line (\d+), column (\d+)(?: in (.+))? in (\S+):$/;
-                var lines = e.stacktrace.split('\n'), result = [];
+                var match,
+                    lineRE = /^.*line (\d+), column (\d+)(?: in (.+))? in (\S+):$/;
+                var lines = e.stacktrace.split(NEW_LINES), result = [];
+
+                //Gets rid of all odd lines.
+                lines.map(function(v, k, a) { return k % 2 == 0 ? v : '' });
 
                 for (var i = 0, len = lines.length; i < len; i += 2) {
-                    var match = lineRE.exec(lines[i]);
-                    if (match) {
-                        var location = match[4] + ':' + match[1] + ':' + match[2];
+                    if (lines[i] !== '' && (match = lineRE.exec(lines[i]))) {
                         var fnName = match[3] || "global code";
                         fnName = fnName.replace(/<anonymous function: (\S+)>/, "$1").replace(/<anonymous function>/, ANON);
-                        result.push(fnName + '@' + location + ' -- ' + lines[i + 1].replace(/^\s+/, ''));
+                        result.push(fnName + '@' + match[4] + ':' + match[1] + ':' + match[2]);
                     }
                 }
 
@@ -173,7 +177,7 @@
                 var match,
                     results = [],
                     lineRE = /^(.*)@(.+):(\d+)$/,
-                    lines = e.stacktrace.split('\n');
+                    lines = e.stacktrace.split(NEW_LINES);
 
                 // Initialize loop vars
                 var i = -1, max = lines.length;
@@ -184,7 +188,7 @@
                     match = lineRE.exec(lines[i]);
                     if (match) {
                         var fnName = match[1] ? (match[1] + '()') : "global code";
-                        result.push(fnName + '@' + match[2] + ':' + match[3]);
+                        result.push(fnName + '@' + match[2] + ':' + match[3] + ':');
                     }
                 }
 
@@ -197,7 +201,10 @@
                 var match,
                     result = [],
                     lineRE = /Line (\d+).*script (?:in )?(\S+)(?:: In function (\S+))?$/i,
-                    lines = e.stacktrace.split('\n');
+                    lines = e.stacktrace.split(NEW_LINES);
+
+                //Gets rid of all odd lines.
+                lines.map(function(v, k, a) { return k % 2 == 0 ? v : '' });
 
                 // Initialize loop vars
                 var i = -2, max = lines.length;
@@ -205,10 +212,9 @@
                     // Account for limit option.
                     if (!!limit && results.length < limit) break;
 
-                    match = lineRE.exec(lines[i]);
-                    if (match) {
+                    if (lines[i] !== '' && (match = lineRE.exec(lines[i]))) {
                         var fnName = match[3] || ANON;
-                        result.push(fnName + '()@' + match[2] + ':' + match[1] + ' -- ' + lines[i + 1].replace(/^\s+/, ''));
+                        result.push(fnName + '()@' + match[2] + ':' + match[1] + ':');
                     }
                 }
 
@@ -220,8 +226,11 @@
 
                 var match,
                     result = [],
-                    lines = e.message.split('\n'),
+                    lines = e.message.split(NEW_LINES),
                     lineRE = /Line (\d+).*script (?:in )?(\S+)/i;
+
+                //Gets rid of all odd lines.
+                lines.map(function(v, k, a) { return k % 2 == 0 ? v : '' });
 
                 // Initialize loop vars
                 var i = -2, max = lines.length;
@@ -229,10 +238,8 @@
                     // Account for limit option.
                     if (!!limit && results.length < limit) break;
 
-                    var match = lineRE.exec(lines[i]);
-                    if (match) {
-                        result.push(ANON + '()@' + match[2] + ':' + match[1] + ' -- ' + lines[i + 1].replace(/^\s+/, ''));
-                    }
+                    if (lines[i] !== '' && (match = lineRE.exec(lines[i])))
+                        result.push(ANON + '()@' + match[2] + ':' + match[1] + ':');
                 }
 
                 return result;
