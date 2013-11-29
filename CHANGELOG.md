@@ -4,12 +4,17 @@
 
 * Firefox, Chrome and IE are currently fixed and produce the same line. Still need to check Opera and Safari, etc.
 * Traced functions return the same line as traceStack.
-* Properties now hold a reference to their personal tracer. (This may change) If you add a property to multiple StackTracers, the last will make sure that it was properly unsubscribed from the previous ones. This had the potential to create inifinite loops.
+* If you add a property to multiple StackTracers, the last will make sure that it was properly unsubscribed from the previous ones. This had the potential to create inifinite loops.
+
+##### Additions
+
+* `limit` is now a working option for IE, Firefox and Chrome. Still need to support Safari and Opera.
 
 ##### Changes
 
 * traceStack is now simply a short-hand for a single-use StackTracer. This version has guessing turned off.
 * StackTracers now accept options and hold them independently from each other. This allows for different properties to be traced with different configurations.
+* Properties now hold a reference to their personal tracer. (This may change) 
 
 ### Initial Version (0.1)
 

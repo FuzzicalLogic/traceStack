@@ -96,40 +96,50 @@
          * @enum {function}
          */
         formatters = {
-            chrome: function(e) {
-                return (e.stack + '\n')
-                .replace(/^[\s\S]+?\s+at\s+/, ' at ')
-                .replace(/^\s+(at eval )?at\s+/gm, '')
-                .replace(/^([^\(]+?)([\n$])/gm, '{anonymous}() ($1)$2')
-                .replace(/^Object.<anonymous>\s*\(([^\)]+)\)/gm, '{anonymous}() ($1)')
-                .replace(/^(.+) \((.+)\)$/gm, '$1@$2')
-                .split('\n')
-                .slice(0, -1);
+            chrome: function(e, limit) {
+                var results
+                results =  (e.stack + '\n')
+                    .replace(/^[\s\S]+?\s+at\s+/, ' at ');
+                // Accounts for a limit, if one was set.
+                if (!!limit) 
+                    results = results.split(/\r\n|[\n\r\u2028\u2029]/g).slice(0, limit + 1).join('\n');
+                
+                return results.replace(/^\s+(at eval )?at\s+/gm, '')
+                    .replace(/^([^\(]+?)([\n$])/gm, '{anonymous}() ($1)$2')
+                    .replace(/^Object.<anonymous>\s*\(([^\)]+)\)/gm, '{anonymous}() ($1)')
+                    .replace(/^(.+) \((.+)\)$/gm, '$1@$2')
+                    .split('\n')
+                    .slice(0, -1);
             },
 
-            safari: function(e) {
-                return e.stack.replace(/\[native code\]\n/m, '')
-                .replace(/^(?=\w+Error\:).*$\n/m, '')
-                .replace(/^@/gm, '{anonymous}()@')
-                .split('\n');
+            safari: function(e, limit) {
+                var results = e.stack.replace(/\[native code\]\n/m, '')
+                    .replace(/^(?=\w+Error\:).*$\n/m, '');
+                if (!!limit)
+                    results = results.split(/\r\n|[\n\r\u2028\u2029]/g).slice(0, limit + 1).join('\n');
+                return results.replace(/^@/gm, '{anonymous}()@').split('\n');
             },
 
-            ie: function(e) {
-                return e.stack
-                .replace(/^\s*at\s+(.*)$/gm, '$1')
-                .replace(/^Anonymous function\s+/gm, '{anonymous}() ')
-                .replace(/^(.+)\s+\((.+)\)$/gm, '$1@$2')
-                .split('\n')
-                .slice(1);
+            ie: function(e, limit) {
+                var results = e.stack.replace(/^\s*at\s+(.*)$/gm, '$1');
+                if (!!limit) {
+                    results = results.split(/\r\n|[\n\r\u2028\u2029]/g).results.slice(0, limit + 1).results.join('\n');
+                }
+                return results.replace(/^Anonymous function\s+/gm, '{anonymous}() ')
+                    .replace(/^(.+)\s+\((.+)\)$/gm, '$1@$2')
+                    .split('\n')
+                    .slice(1);
             },
 
-            firefox: function(e) {
-                return e.stack.replace(/(?:\n@:0)?\s+$/m, '')
-                .replace(/^(?:\((\S*)\))?@/gm, '{anonymous}($1)@')
-                .split('\n').map(function(v, k, a) { return v + ':'; });
+            firefox: function(e, limit) {
+                var results = e.stack.replace(/(?:\n@:0)?\s+$/m, '');
+                if (!!limit)
+                    results = results.split(/\r\n|[\n\r\u2028\u2029]/g).slice(0, limit + 1).join('\n');
+                return results.replace(/^(?:\((\S*)\))?@/gm, '{anonymous}($1)@')
+                    .split('\n').map(function(v, k, a) { return v + ':'; });
             },
 
-            opera11: function(e) {
+            opera11: function(e, limit) {
                 if (!e.stacktrace) throw new TypeError();
 
                 var ANON = '{anonymous}', lineRE = /^.*line (\d+), column (\d+)(?: in (.+))? in (\S+):$/;
@@ -148,7 +158,7 @@
                 return result;
             },
 
-            opera10b: function(e) {
+            opera10b: function(e, limit) {
                 var lineRE = /^(.*)@(.+):(\d+)$/;
                 var lines = e.stacktrace.split('\n'), result = [];
 
@@ -163,7 +173,7 @@
                 return result;
             },
 
-            opera10a: function(e) {
+            opera10a: function(e, limit) {
                 var ANON = '{anonymous}', lineRE = /Line (\d+).*script (?:in )?(\S+)(?:: In function (\S+))?$/i;
                 var lines = e.stacktrace.split('\n'), result = [];
 
@@ -178,7 +188,7 @@
                 return result;
             },
 
-            opera9: function(e) {
+            opera9: function(e, limit) {
                 var ANON = '{anonymous}', lineRE = /Line (\d+).*script (?:in )?(\S+)/i;
                 var lines = e.message.split('\n'), result = [];
 
@@ -192,7 +202,7 @@
                 return result;
             },
 
-            other: function(curr) {
+            other: function(curr, limit) {
                 var ANON = '{anonymous}', fnRE = /function\s*([\w\-$]+)?\s*\(/i, stack = [], fn, args, maxStackSize = 10;
                 while (curr && curr['arguments'] && stack.length < maxStackSize) {
                     fn = fnRE.test(curr.toString()) ? RegExp.$1 || ANON : ANON;
@@ -229,21 +239,37 @@
             // Handle options internally, so that each StackTracer may have it owns options.
             var myCfg = options || {},
                 myGuess = !!myCfg.guess,
+                myLimit = (myCfg.limit && myCfg.limit > 0) 
+                        ? myCfg.limit
+                        : 0,
                 myMode = ((!!myCfg.mode) && (myCfg.mode in formatters))
-                     ? myCfg.mode
-                     : ourMode,
+                       ? myCfg.mode
+                       : ourMode,
                 myFormatter = (myMode === ourMode)
-                          ? ourFormatter
-                          : formatters[myMode];
+                            ? ourFormatter
+                            : formatters[myMode];
 
-            /** @expose */
+            /** 
+             *
+             * @param {Error} ex The error to use when tracing. If not provided,
+             *    traceStack will create one internally.
+             * @expose 
+             */
             this.run = function(ex) {
                 var out,
-                    err = !!ex ? ex : createException();
+                    // We only chop the beginning if we generate the error...
+                    shift = !!ex ? 0 : 3,
+                    // This will be passed to the parser function...
+                    limit = !!!myLimit ? 0 : myLimit + shift,
+                    err = myMode === 'other'
+                        ? arguments.callee
+                        : !!ex
+                            ? ex
+                            : createException();
 
                 try {
-                    out = myFormatter(myMode !== 'other' ? err : arguments.callee)
-                            .slice(3)
+                    out = myFormatter(err, limit)
+                            .slice(shift)
                             .map(function(v, k, a) { return new StackInfo(v, myGuess) });
                     // Allow user to get a user-readable string
                     out.toString = function() { return this.join('\n') };
@@ -295,6 +321,10 @@
              * @expose 
              */
             'stop': function(context, property) {
+                context = context || global;
+                if (!(property in context))
+                    throw new TypeError('Cannot read property "' + property + '" of ' + context);
+
                 var ref, fn = context[property];
                 if ('function' === typeof fn && (ref = fn._instrumented)) {
                     context[property] = 'original' in ref ? ref.original : ref;
