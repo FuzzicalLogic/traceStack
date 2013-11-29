@@ -489,6 +489,8 @@
 
     /**
     * Given arguments array as a String, substituting type names for non-string types.
+    * 
+    * @todo Check if this works correctly with boolean values.
     *
     * @param {(Arguments|Array)} args
     * @return {String} stringified arguments
