@@ -87,10 +87,11 @@
         return result;
     }
 
-    var /** @const */
+    var /** @const {string} Replacement for anonymous functions.*/
         ANON = '{anonymous}',
-        /** @const NEWLINES The proper RegEx for finding new lines. */
+        /** @const {RegExp} The proper RegEx for finding new lines. */
         NEW_LINES = /\r\n|[\n\r\u2028\u2029]/g,
+
         sourceCache = {},
         /**
          * Enum for formatting functions based on localized environment (often
@@ -103,14 +104,8 @@
             chrome: function(e, limit) {
                 if (!e.stack) throw new TypeError();
 
-                var results
-                results =  (e.stack + '\n')
-                    .replace(/^[\s\S]+?\s+at\s+/, ' at ');
-                // Accounts for a limit, if one was set.
-                if (!!limit) 
-                    results = results.split(NEW_LINES).slice(0, limit + 1).join('\n');
-                
-                return results.replace(/^\s+(at eval )?at\s+/gm, '')
+                return applyStackLimit((e.stack + '\n').replace(/^[\s\S]+?\s+at\s+/, ' at '), limit)
+                    .replace(/^\s+(at eval )?at\s+/gm, '')
                     .replace(/^([^\(]+?)([\n$])/gm, ANON + '() ($1)$2')
                     .replace(/^Object.<anonymous>\s*\(([^\)]+)\)/gm, ANON + '() ($1)')
                     .replace(/^(.+) \((.+)\)$/gm, '$1@$2')
@@ -121,20 +116,15 @@
             safari: function(e, limit) {
                 if (!e.stack) throw new TypeError();
 
-                var results = e.stack.replace(/\[native code\]\n/m, '')
-                    .replace(/^(?=\w+Error\:).*$\n/m, '');
-                if (!!limit)
-                    results = results.split(NEW_LINES).slice(0, limit + 1).join('\n');
-                return results.replace(/^@/gm, ANON + '()@').split('\n');
+                return applyStackLimit(e.stack.replace(/\[native code\]\n/m, '').replace(/^(?=\w+Error\:).*$\n/m, ''), limit)
+                    .replace(/^@/gm, ANON + '()@').split('\n');
             },
 
             ie: function(e, limit) {
                 if (!e.stack) throw new TypeError();
 
-                var results = e.stack.replace(/^\s*at\s+(.*)$/gm, '$1');
-                if (!!limit)
-                    results = results.split(NEW_LINES).results.slice(0, limit + 1).results.join('\n');
-                return results.replace(/^Anonymous function\s+/gm, ANON + '() ')
+                return applyStackLimit(e.stack.replace(/^\s*at\s+(.*)$/gm, '$1'), limit)
+                    .replace(/^Anonymous function\s+/gm, ANON + '() ')
                     .replace(/^(.+)\s+\((.+)\)$/gm, '$1@$2')
                     .split('\n')
                     .slice(1);
@@ -143,10 +133,8 @@
             firefox: function(e, limit) {
                 if (!e.stack) throw new TypeError();
 
-                var results = e.stack.replace(/(?:\n@:0)?\s+$/m, '');
-                if (!!limit)
-                    results = results.split(NEW_LINES).slice(0, limit + 1).join('\n');
-                return results.replace(/^(?:\((\S*)\))?@/gm, ANON + '($1)@')
+                return applyStackLimit(e.stack.replace(/(?:\n@:0)?\s+$/m, ''), limit)
+                    .replace(/^(?:\((\S*)\))?@/gm, ANON + '($1)@')
                     .split('\n').map(function(v, k, a) { return v + ':'; });
             },
 
@@ -256,6 +244,12 @@
                 return stack;
             }
         };
+
+    function applyStackLimit(stack, limit) {
+        return !!!limit
+             ? stack
+             : stack.split(NEW_LINES).slice(0, limit + 1).join('\n');
+    }
 
     /** 
      * An automatic tracer to get a stack trace each time a given object property 
