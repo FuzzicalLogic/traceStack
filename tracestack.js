@@ -371,8 +371,8 @@
                             : createException();
 
                 try {
-                    out = ('function' === typeof myFormatter ? myFormatter(err, limit) : myFormatter.parse(err, limit))
-                            .slice(shift)
+                    out = ('function' === typeof myFormatter ? myFormatter(err, limit) : myFormatter.parse(err, limit));
+                    out = (!!!myLimit ? out.slice(shift) : out.slice(shift, limit))
                             .map(function(v, k, a) { return new StackEntry(v, myGuess) });
                     // Allow user to get a user-readable string
                     out.toString = function() { return this.join('\n') };
@@ -709,4 +709,7 @@
         // Browser globals
         global.traceStack = factory();
     }
+    console.log(traceStack({ limit: 1 }));
 }(this));
+
+console.log(traceStack());
