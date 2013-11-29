@@ -379,7 +379,6 @@
                 }
                 catch (e) {
                     out = 'traceStack may not be configured to work properly with this environment';
-                    console.log(e.stack);
                 }
                 return out;
             };
@@ -408,7 +407,6 @@
                     fnProp = 'function' === typeof prop ? prop : function(val) { return prop };
 
                 context[property] = function trace() {
-                    console.log(this);
                     callback.call(this, context[property]._tracer.run());
                     return context[property]._instrumented.apply(this, arguments);
                 };
@@ -680,7 +678,6 @@
         }
     }
 
-
     /** 
      * Creates and returns a eval'd named ClassModule function.
      *
@@ -709,7 +706,5 @@
         // Browser globals
         global.traceStack = factory();
     }
-    console.log(traceStack({ limit: 1 }));
 }(this));
 
-console.log(traceStack());
