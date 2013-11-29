@@ -56,7 +56,11 @@
      * 
      * @return {(function|object)}
      */
-    function factory() { return traceStack; }
+    function factory() {
+        if (Object.freeze)
+            Object.freeze(traceStack);
+        return traceStack;
+    }
 
     /** 
      * Gets the stack and converts it to an Array of StackInfo objects. The 
@@ -79,12 +83,9 @@
      */
     function traceStack(options) {
         options = options || { guess: true };
-        var ex = options.e || null,
-            result = new traceStack.StackTracer(options).run(ex);
+        var ex = options.e || null;
 
-        //result = (p.guess) ? guessAnonymousFunctions(result) : result;
-
-        return result;
+        return new traceStack.StackTracer(options).run(ex);
     }
 
     var StackParser = (function(Class) {
@@ -108,22 +109,57 @@
             }
         }
 
-        Class.prototype['class'] = Class;
-
-        function applyStackLimit(stack, limit) {
-            return !!!limit ? stack : stack.split(/\r\n|[\n\r\u2028\u2029]/g).slice(0, limit + 1).join('\n');
+        /** 
+         * Checks the error object for individual stack-related properties. Due 
+         * to a lack of standardization of the stack, we can only determine the
+         * proper method by these properties.
+         *
+         * @param {Error} e - An error object that has already been thrown.
+         * @return {string}
+         */
+        Class.autodetect = function(e) {
+            if (e.stack) {
+                if (e['arguments'])
+                    return 'chrome';
+                else if (e.sourceURL)
+                    return 'safari';
+                else if (e.number)
+                    return 'ie';
+                else if (e.fileName)
+                    return 'firefox';
+                else if (e.message && e.stacktrace) {
+                    if (e.stacktrace.indexOf("called from line") < 0)
+                        return 'opera10b';
+                    return 'opera11';
+                }
+                else if (!e.fileName)
+                    return 'chrome';
+            }
+            else if (e.message && e['opera#sourceloc']) {
+                if (!e.stacktrace)
+                    return 'opera9';
+                if (e.message.indexOf('\n') > -1 && e.message.split('\n').length > e.stacktrace.split('\n').length) {
+                    return 'opera9';
+                }
+                return 'opera10a';
+            }
+            return 'other';
         }
 
-        function parsePhase(stack, expressions) {
-            var expr,
-                out = stack,
-                i = -1, max = expressions.length;
+        Class.prototype['class'] = Class;
 
-            while (++i < max) {
-                expr = expressions[i];
+        function parsePhase(stack, expressions) {
+            var out = stack,
+                expr, i = -1, max = expressions.length;
+
+            while (++i < max && (expr = expressions[i])) {
                 out = out.replace(expr[0], !!!expr[1] ? '' : expr[1]);
             }
             return out;
+        }
+
+        function applyStackLimit(stack, limit) {
+            return !!!limit ? stack : stack.split(/\r\n|[\n\r\u2028\u2029]/g).slice(0, limit + 1).join('\n');
         }
 
         return Class;
@@ -291,7 +327,7 @@
              *
              * @type {string}
              */
-            ourMode = getMode(createException()),
+            ourMode = StackParser.autodetect(createException()),
             /** Caches the Formatter when the class is run. (We can only run in 
              * one browser per instance.)
              *
@@ -303,7 +339,9 @@
         Class.create = function(options) {
             // Handle options internally, so that each StackTracer may have it owns options.
             var myCfg = options || {},
-                myGuess = !!myCfg.guess,
+                myGuess = ('undefined' === typeof myCfg.guess)
+                        ? true
+                        : !!myCfg.guess,
                 myLimit = (myCfg.limit && myCfg.limit > 0) 
                         ? myCfg.limit
                         : 0,
@@ -335,7 +373,7 @@
                 try {
                     out = ('function' === typeof myFormatter ? myFormatter(err, limit) : myFormatter.parse(err, limit))
                             .slice(shift)
-                            .map(function(v, k, a) { return new StackInfo(v, myGuess) });
+                            .map(function(v, k, a) { return new StackEntry(v, myGuess) });
                     // Allow user to get a user-readable string
                     out.toString = function() { return this.join('\n') };
                 }
@@ -407,43 +445,6 @@
          */
         function createException() { try { Class.undef(); } catch (e) { return e; } }
 
-        /** 
-         * Checks the error object for individual stack-related properties. Due 
-         * to a lack of standardization of the stack, we can only determine the
-         * proper method by these properties.
-         *
-         * @param {Error} e - An error object that has already been thrown.
-         * @return {string}
-         */
-        function getMode(e) {
-            if (e.stack) {
-                if (e['arguments'])
-                    return 'chrome';
-                else if (e.sourceURL)
-                    return 'safari';
-                else if (e.number)
-                    return 'ie';
-                else if (e.fileName)
-                    return 'firefox';
-                else if (e.message && e.stacktrace) {
-                    if (e.stacktrace.indexOf("called from line") < 0)
-                        return 'opera10b';
-                    return 'opera11';
-                }
-                else if (!e.fileName)
-                    return 'chrome';
-            }
-            else if (e.message && e['opera#sourceloc']) {
-                if (!e.stacktrace)
-                    return 'opera9';
-                if (e.message.indexOf('\n') > -1 && e.message.split('\n').length > e.stacktrace.split('\n').length) {
-                    return 'opera9';
-                }
-                return 'opera10a';
-            }
-            return 'other';
-        }
-
         return Class;
     }(evilClass('StackTracer')));
 
@@ -452,7 +453,7 @@
      * Since the format in guaranteed by the formatter functions, we rely on
      * this to parse into an object.
      */
-    var StackInfo = (function StackInfo(Class) {
+    var StackEntry = (function StackInfo(Class) {
         /**
          * @param {string} line A line pre-formatted by an internal formatter.
          *
@@ -472,15 +473,114 @@
             /** @expose */this.file = file;
             /** @expose */this.line = line;
             /** @expose */this.column = col;
-            /** @expose */this.func = func;
+
+            /* @todo Make this async(?) */
+            if (guess && func === ANON+'()') {
+                func = guessFunctionName(this);
+            }
+            // Support for guessing at a later date.
+            else if (func === ANON+'()') {
+                this.guess = function() {
+                    var func = guessFunctionName(this);
+                    // Only guess once. If it fails, later attempts will not resolve it.
+                    this.func = (!!func) ? func : ANON;
+                    delete this.guess;
+                    return this;
+                };
+            }
+            /** @expose */this.func = (!!func) ? func : ANON;
         };
 
         /** @expose */Class.prototype['class'] = Class;
-        /** @expose */Class.prototype.toString = function() {
+        /** 
+         * Gets a user-readable string representation of the StackEntry
+         *
+         * @return {string}
+         * @expose 
+         */
+        Class.prototype.toString = function() {
             return 'Line ' + this.line + (!!!this.column ? '' : ', Column ' + this.column) + ' of ' + this.file + ': ' + this.func;
         };
+
+        /**
+         *
+         * @param {StackEntry} The entry to find the function for.
+         * @return {(string|boolean)} The function's name or False if it could not be found.
+         */
+        function guessFunctionName(entry) {
+            var file = entry.file,
+                line = entry.line,
+                col = entry.column;
+            
+            if (!!file && isSameDomain(file) && line) {
+                try {
+                    return findFunctionName(getSource(file), line);
+                }
+                catch (e) {
+                    ;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Given a URL, check if it is in the same domain to determine if we can use
+         * AJAX to get the source code. The previous version would return true and 
+         * cause an error if the protocol was not an allowable AJAX protocol.
+         *
+         * @param {string} url URL of the file to check
+         * @return {boolean} True if we can make an AJAX request
+         */
+        function isSameDomain(url) {
+            // location is not defined in some local environments
+            // AJAX is only supported for the http: protocol
+            return typeof location !== "undefined"
+                && (location.protocol === 'http:' || location.protocol === 'https:')
+                && url.indexOf(location.hostname) !== 1;
+        }
+
+        function findFunctionName(source, lineNo) {
+            // FIXME findFunctionName fails for compressed source
+            // (more than one function on the same line)
+            // function {name}({args}) m[1]=name m[2]=args
+            var reFunctionDeclaration = /function\s+([^(]*?)\s*\(([^)]*)\)/;
+            // {name} = function ({args}) TODO args capture
+            // /['"]?([0-9A-Za-z_]+)['"]?\s*[:=]\s*function(?:[^(]*)/
+            var reFunctionExpression = /['"]?([$_A-Za-z][$_A-Za-z0-9]*)['"]?\s*[:=]\s*function\b/;
+            // {name} = eval()
+            var reFunctionEvaluation = /['"]?([$_A-Za-z][$_A-Za-z0-9]*)['"]?\s*[:=]\s*(?:eval|new Function)\b/;
+            // Walk backwards in the source lines until we find
+            // the line which matches one of the patterns above
+            var code = "", line, maxLines = Math.min(lineNo, 20), m, commentPos;
+            for (var i = 0; i < maxLines; ++i) {
+                // lineNo is 1-based, source[] is 0-based
+                line = source[lineNo - i - 1];
+                commentPos = line.indexOf('//');
+                if (commentPos >= 0) {
+                    line = line.substr(0, commentPos);
+                }
+                // TODO check other types of comments? Commented code may lead to false positive
+                if (line) {
+                    code = line + code;
+                    m = reFunctionExpression.exec(code);
+                    if (m && m[1]) {
+                        return m[1];
+                    }
+                    m = reFunctionDeclaration.exec(code);
+                    if (m && m[1]) {
+                        return m[1];
+                    }
+                    m = reFunctionEvaluation.exec(code);
+                    if (m && m[1]) {
+                        return m[1];
+                    }
+                }
+            }
+            return '(?)';
+        }
+
         return Class;
-    }(evilClass('StackInfo')));
+    }(evilClass('StackEntry')));
 
     /**
     * Given arguments array as a String, substituting type names for non-string types.
@@ -516,56 +616,6 @@
             }
         }
         return result.join(',');
-    }
-
-    // FIXME: Currently results in multiple checks for a single file.
-    function guessAnonymousFunctions(stack) {
-        for (var i = 0; i < stack.length; ++i) {
-            var reStack = /\{anonymous\}\(.*\)@(.*)/,
-            reRef = /^(.*?)(?::(\d+))(?::(\d+))?(?: -- .+)?$/,
-            frame = stack[i], ref = reStack.exec(frame);
-
-            if (ref) {
-                var m = reRef.exec(ref[1]);
-                if (m) { // If falsey, we did not get any file/line information
-                    var file = m[1], lineno = m[2], charno = m[3] || 0;
-                    if (file && isSameDomain(file) && lineno) {
-                        var functionName = guessAnonymousFunction(file, lineno, charno);
-                        stack[i] = frame.replace('{anonymous}', functionName);
-                    }
-                }
-            }
-        }
-        return stack;
-    }
-
-    /**
-     * Given a URL, check if it is in the same domain to determine if we can use
-     * AJAX to get the source code. The previous version would return true and 
-     * cause an error if the protocol was not an allowable AJAX protocol.
-     *
-     * @todo Check for correct placement of hostname. Since source filenames may be
-     *     part of a GET parameter, this is not entirely functional.
-     *
-     * @param {string} url URL of the file to check
-     * @return {boolean} True if we can make an AJAX request
-     */
-    function isSameDomain(url) {
-        // location is not defined in some local environments
-        // AJAX is only supported for the http: protocol
-        return typeof location !== "undefined"
-            && (location.protocol === 'http:' || location.protocol === 'https:')
-            && url.indexOf(location.hostname) !== 1;
-    }
-
-    function guessAnonymousFunction(url, lineNo, charNo) {
-        var ret;
-        try {
-            ret = findFunctionName(getSource(url), lineNo);
-        } catch (e) {
-            ret = 'getSource failed with url: ' + url + ', exception: ' + e.toString();
-        }
-        return ret;
     }
 
     /**
@@ -630,46 +680,6 @@
         }
     }
 
-    function findFunctionName(source, lineNo) {
-        // FIXME findFunctionName fails for compressed source
-        // (more than one function on the same line)
-        // function {name}({args}) m[1]=name m[2]=args
-        var reFunctionDeclaration = /function\s+([^(]*?)\s*\(([^)]*)\)/;
-        // {name} = function ({args}) TODO args capture
-        // /['"]?([0-9A-Za-z_]+)['"]?\s*[:=]\s*function(?:[^(]*)/
-        var reFunctionExpression = /['"]?([$_A-Za-z][$_A-Za-z0-9]*)['"]?\s*[:=]\s*function\b/;
-        // {name} = eval()
-        var reFunctionEvaluation = /['"]?([$_A-Za-z][$_A-Za-z0-9]*)['"]?\s*[:=]\s*(?:eval|new Function)\b/;
-        // Walk backwards in the source lines until we find
-        // the line which matches one of the patterns above
-        var code = "", line, maxLines = Math.min(lineNo, 20), m, commentPos;
-        for (var i = 0; i < maxLines; ++i) {
-            // lineNo is 1-based, source[] is 0-based
-            line = source[lineNo - i - 1];
-            commentPos = line.indexOf('//');
-            if (commentPos >= 0) {
-                line = line.substr(0, commentPos);
-            }
-            // TODO check other types of comments? Commented code may lead to false positive
-            if (line) {
-                code = line + code;
-                m = reFunctionExpression.exec(code);
-                if (m && m[1]) {
-                    return m[1];
-                }
-                m = reFunctionDeclaration.exec(code);
-                if (m && m[1]) {
-                    //return m[1] + "(" + (m[2] || "") + ")";
-                    return m[1];
-                }
-                m = reFunctionEvaluation.exec(code);
-                if (m && m[1]) {
-                    return m[1];
-                }
-            }
-        }
-        return '(?)';
-    }
 
     /** 
      * Creates and returns a eval'd named ClassModule function.
