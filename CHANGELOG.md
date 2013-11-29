@@ -2,7 +2,7 @@
 
 ##### Fixes
 
-* Firefox, Chrome and IE are currently fixed and produce the same line. Still need to check Opera and Safari, etc.
+* Firefox, Chrome and IE are currently fixed and produce the same line. Still need to check Opera and Safari, etc. (Retest)
 * Traced functions now return the same line as `traceStack()`. (need to recheck after limit) Hopefully, this eases somebody's confusion.
 * If you add a property to multiple StackTracers, the last will make sure that it was properly unsubscribed from the previous ones. This had the potential to create inifinite loops and even stall the computer.
 * While `trace()` properly checked for existing properties, `stop()` did not. This should result in fewer headaches.
