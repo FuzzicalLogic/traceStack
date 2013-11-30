@@ -441,7 +441,7 @@
          *
          * @return {Error}
          */
-        function createException() { try { Class.undef(); } catch (e) { return e; } }
+        function createException() { try { Class.undef(); } catch (e) { console.log(e);return e; } }
 
         return Class;
     }(evilClass('StackTracer')));
@@ -707,4 +707,3 @@
         global.traceStack = factory();
     }
 }(this));
-
