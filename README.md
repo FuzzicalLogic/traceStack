@@ -3,7 +3,7 @@ traceStack
 
 Allows you or your code to get a (re-)usable JavaScript stack trace from within your code or console. It can be configured to guess anonymous function names (when working within a browser) and even limit the number of entries that you recieve. You may additionally create indepent `StackTracers` with different configurations to trace the access of public or priveleged properties.
 
-There are two versions: the full version for debugging environments and the lite version for embedding directly within your own libraries. The only significant difference is that the lite version does not include the ability to guess anonymous function names. 
+There are two versions: the full version for debugging environments and the lite version for embedding directly within your own libraries. The most significant difference is that the lite version does not support browsers that do not have useful stack info. This excludes IE9-, Safari 5-, Opera 8- and several other older browsers. If you need to support these, you can try the full version, or use [stacktrace.js][1]. Another important difference is that the lite version does not include the ability to guess anonymous function names.
 
 ##### Notes:
 
@@ -115,6 +115,11 @@ This example assumes that you may want only the top level of a stack for some fu
 ### Embedding the Lite version
 
 In most cases, embedding the lite version is as simple as placing the code directly within your own module, namespace or class. In some cases, you will want to change the last line `(this)` to refer to different level. This may even be done quite easily with the minified version, though typically you will want to minify it using your minification process instead.
+
+### Why do traceStack not support certain browsers?
+
+As developers, we always have to make these hard decisions. The fact is, frequently, we are extremely supportive of other browsers when it comes to actual production code. This library is for developers who are actively developing or debugging code. Our standards should be set higher when trying to maintain a quality of code and we should be using the tools that are going to make it easier to do our jobs, not harder. A stack is easier; an advanced stack is even more so. Browsers and environments that do not have either of these are detrimental to our process.
+
 
 [1]: https://github.com/eriwen/javascript-stacktrace
 [2]: https://github.com/FuzzicalLogic/traceStack/blob/master/CHANGELOG.md
