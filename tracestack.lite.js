@@ -258,7 +258,6 @@
                     result = [],
                     lineRE = /Line (\d+).*script (?:in )?(\S+)(?:: In function (\S+))?$/i,
                     lines = e.stacktrace.split(NEW_LINES);
-
                 //Gets rid of all odd lines.
                 lines.map(function(v, k, a) { return k % 2 == 0 ? v : '' });
 
@@ -300,17 +299,6 @@
 
                 return result;
             },
-
-            other: function(curr, limit) {
-                var fnRE = /function\s*([\w\-$]+)?\s*\(/i, stack = [], fn, args, maxStackSize = 10;
-                while (curr && curr['arguments'] && stack.length < maxStackSize) {
-                    fn = fnRE.test(curr.toString()) ? RegExp.$1 || ANON : ANON;
-                    args = Array.prototype.slice.call(curr['arguments'] || []);
-                    stack[stack.length] = fn + '(' + stringifyArguments(args) + ')';
-                    curr = curr.caller;
-                }
-                return stack;
-            }
         };
 
 
@@ -361,16 +349,14 @@
                     shift = !!ex ? 0 : 3,
                     // This will be passed to the parser function...
                     limit = !!!myLimit ? 0 : myLimit + shift,
-                    err = myMode === 'other'
-                        ? arguments.callee
-                        : !!ex
-                            ? ex
-                            : createException();
+                    err = !!ex ? ex : createException();
 
                 try {
                     out = ('function' === typeof myFormatter ? myFormatter(err, limit) : myFormatter.parse(err, limit));
-                    out = (!!!myLimit ? out.slice(shift) : out.slice(shift, limit))
-                            .map(function(v, k, a) { return new StackEntry(v) });
+
+                    out = !!!myLimit ? out.slice(shift) : out.slice(shift, limit)
+                    
+                    out = out.map(function(v, k, a) { return new StackEntry(v) });
                     // Allow user to get a user-readable string
                     out.toString = function() { return this.join('\n') };
                 }
@@ -454,7 +440,7 @@
          *
          * @constructor
          */
-        Class.create = function(line, guess) {
+        Class.create = function(line) {
             if ('string' !== typeof line && !(line instanceof String))
                 throw new TypeError('New StackInfo instances require a valid string.')
             var tmp = line.split('@'),
@@ -468,6 +454,8 @@
             /** @expose */this.file = file;
             /** @expose */this.line = line;
             /** @expose */this.column = col;
+
+            /** @todo Make this async(?) */
             /** @expose */this.func = (!!func) ? func : ANON;
         };
 
@@ -485,44 +473,6 @@
         return Class;
     }(evilClass('StackEntry')));
 
-    /**
-    * Given arguments array as a String, substituting type names for non-string types.
-    * 
-    * @todo Check if this works correctly with boolean values.
-    *
-    * @param {(Arguments|Array)} args
-    * @return {String} stringified arguments
-    */
-    function stringifyArguments(args) {
-        var result = [];
-        var slice = Array.prototype.slice;
-        for (var i = 0; i < args.length; ++i) {
-            var arg = args[i];
-            if (arg === undefined) {
-                result[i] = 'undefined';
-            } else if (arg === null) {
-                result[i] = 'null';
-            } else if (arg.constructor) {
-                if (arg.constructor === Array) {
-                    if (arg.length < 3) {
-                        result[i] = '[' + stringifyArguments(arg) + ']';
-                    } else {
-                        result[i] = '[' + stringifyArguments(slice.call(arg, 0, 1)) + '...' + stringifyArguments(slice.call(arg, -1)) + ']';
-                    }
-                } else if (arg.constructor === Object) {
-                    result[i] = '#object';
-                } else if (arg.constructor === Function) {
-                    result[i] = '#function';
-                } else if (arg.constructor === String) {
-                    result[i] = '"' + arg + '"';
-                } else if (arg.constructor === Number) {
-                    result[i] = arg;
-                }
-            }
-        }
-        return result.join(',');
-    }
-
     /** 
      * Creates and returns a eval'd named ClassModule function.
      *
@@ -536,7 +486,7 @@
     function evilClass(name) {
         return eval('(function(){'
                 + 'return function ' + name + '(){'
-                    + 'this["class"].create.apply(this,arguments)'
+                    + 'this["class"].create.apply(this,Array.prototype.slice.call(arguments))'
                 + '}'
             + '}());');
     }

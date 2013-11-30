@@ -258,7 +258,6 @@
                     result = [],
                     lineRE = /Line (\d+).*script (?:in )?(\S+)(?:: In function (\S+))?$/i,
                     lines = e.stacktrace.split(NEW_LINES);
-
                 //Gets rid of all odd lines.
                 lines.map(function(v, k, a) { return k % 2 == 0 ? v : '' });
 
@@ -302,13 +301,16 @@
             },
 
             other: function(curr, limit) {
-                var fnRE = /function\s*([\w\-$]+)?\s*\(/i, stack = [], fn, args, maxStackSize = 10;
+                var fnRE = /function\s*([\w\-$]+)?\s*\(/i, stack = [], fn, args, 
+                    maxStackSize = (!!limit && limit < 10) ? limit : 10;
                 while (curr && curr['arguments'] && stack.length < maxStackSize) {
                     fn = fnRE.test(curr.toString()) ? RegExp.$1 || ANON : ANON;
                     args = Array.prototype.slice.call(curr['arguments'] || []);
-                    stack[stack.length] = fn + '(' + stringifyArguments(args) + ')';
+                    stack[stack.length] = fn + '(' + stringifyArguments(args) + ')@::';
                     curr = curr.caller;
                 }
+                if (stack.length < maxStackSize)
+                    stack.push('global code@::')
                 return stack;
             }
         };
@@ -351,7 +353,7 @@
                 myFormatter = (myMode === ourMode)
                             ? ourFormatter
                             : formatters[myMode];
-
+            
             /** 
              *
              * @param {Error} ex The error to use when tracing. If not provided,
@@ -365,15 +367,20 @@
                     // This will be passed to the parser function...
                     limit = !!!myLimit ? 0 : myLimit + shift,
                     err = myMode === 'other'
-                        ? arguments.callee
+                        ? arguments.callee.caller.caller
                         : !!ex
                             ? ex
                             : createException();
 
                 try {
                     out = ('function' === typeof myFormatter ? myFormatter(err, limit) : myFormatter.parse(err, limit));
-                    out = (!!!myLimit ? out.slice(shift) : out.slice(shift, limit))
-                            .map(function(v, k, a) { return new StackEntry(v, myGuess) });
+                    if (myMode === 'other') {
+                        out = !!!myLimit ? out : out.slice(0, myLimit)
+                    }
+                    else {
+                        out = !!!myLimit ? out.slice(shift) : out.slice(shift, limit)
+                    }
+                    out = out.map(function(v, k, a) { return new StackEntry(v, myGuess) });
                     // Allow user to get a user-readable string
                     out.toString = function() { return this.join('\n') };
                 }
@@ -441,7 +448,7 @@
          *
          * @return {Error}
          */
-        function createException() { try { Class.undef(); } catch (e) { console.log(e);return e; } }
+        function createException() { try { Class.undef(); } catch (e) { return e; } }
 
         return Class;
     }(evilClass('StackTracer')));
@@ -691,7 +698,7 @@
     function evilClass(name) {
         return eval('(function(){'
                 + 'return function ' + name + '(){'
-                    + 'this["class"].create.apply(this,arguments)'
+                    + 'this["class"].create.apply(this,Array.prototype.slice.call(arguments))'
                 + '}'
             + '}());');
     }
