@@ -358,7 +358,7 @@
                     
                     out = out.map(function(v, k, a) { return new StackEntry(v) });
                     // Allow user to get a user-readable string
-                    out.toString = function() { return this.join('\n') };
+                    out.toString = function(msg) { return (msg ? msg + '\n\t' : '') + this.join('\n\t') };
                 }
                 catch (e) {
                     out = 'traceStack may not be configured to work properly with this environment';
@@ -467,7 +467,7 @@
          * @expose 
          */
         Class.prototype.toString = function() {
-            return 'Line ' + this.line + (!!!this.column ? '' : ', Column ' + this.column) + ' of ' + this.file + ': ' + this.func;
+            return 'at ' + this.func + (this.file ? ' (' + this.file + (this.line ? ':' + this.line : '') + (this.line ? ':' + this.column : '') + ')' : '');
         };
 
         return Class;
