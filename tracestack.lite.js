@@ -298,7 +298,7 @@
                 }
 
                 return result;
-            },
+            }
         };
 
 
