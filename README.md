@@ -51,6 +51,22 @@ To check if the return is usable:
   * `'opera9'`, `'opera10a'`, `'opera10b'`, `'opera11'`
   * `'other'` *(Uses arguments.callee & arguments.caller)*
     
+#### Stack Strings
+
+To get a Stack String from the array, simply call `toString(message)` on the result. This will produce a standardized stack trace string similar to what you would find in Chrome. If you include the optional `message` parameter, it will be included in the stack string.
+
+For example, `getStack().toString()` would produce output similar to the following:
+
+    at functionName: (myscript.js:1:30)
+	at {anonymous}: (myscript.js:24:27)
+
+In contrast, `getStack().toString('Stack was retrieved') would produce output similar to:
+
+    Stack was retrieved at
+	    at functionName: (myscript.js:15:74)
+		at functionName: (myotherscript.js:156:12)
+		at eval code
+
 ### Usage (`traceStack.StackTracer`)
 
 There may be cases where you would like stack information whenever a specific method or property is called. In these cases, `traceStack` also provides a `StackTracer` object that may be used to gather the information when the property or method is accessed. Additionally, each `StackTracer` can optionally accept the options for `traceStack()`. This allows for different `StackTracers` to differently given circumstance or requirement.
@@ -69,7 +85,9 @@ Should you wish to stop tracing and revert to original behavior, simply call the
 
     tracer.stop(object, 'propertyname|methodname');
     
-    
+
+
+
 #### Examples of `StackTracers`
 
 ##### Single `StackTracer`
