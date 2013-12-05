@@ -1,7 +1,7 @@
 ### Version 0.5.0-Alpha
 
 * `traceStack` now has a `monitor` method. This allows the ability to monitor without having to create a `StackTracer`.
-* The `StackTracer` method .trace()` has been renamed to `.monitor()`. This is to keep up with semantics and conform to the `traceStack` method.
+* The `StackTracer` method `.trace()` has been renamed to `.monitor()`. This is to keep up with semantics and conform to the `traceStack` method.
 * `traceStack.monitor()` and `StackTracer.monitor()` now only require a value to begin monitoring. However, this requires an assignment. The new usage is: `variable = traceStack.monitor(value, callback[, StackTracer]);`
 * `StackTracer` objects used to have an ambiguous `run()` method. This has been renamed to `trace()`.
 * Monitored values can now be get and set.
