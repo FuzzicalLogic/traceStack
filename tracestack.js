@@ -87,10 +87,13 @@
 
         return new traceStack.StackTracer(options).trace(ex);
     }
+
     /**
      * Creates and returns a monitored value/function that will run a stack trace
      * every time it is accessed or called.
      *
+     * @expose
+     * 
      * @param value The initial or current value to store.
      * @param {function} callback A valid function with the following signature:
      *     function(callback)
@@ -117,7 +120,7 @@
             configurable: false,
             value: stopMonitoring
         });
-        return monitor;
+        return monitorAccess;
 
         function monitorAccess() {
             callback.call(this, tracer.trace());
@@ -134,6 +137,7 @@
             return value;
         }
     };
+
 
     var StackParser = (function(Class) {
         Class.create = function(options) {
