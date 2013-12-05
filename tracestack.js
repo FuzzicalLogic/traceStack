@@ -85,13 +85,57 @@
         options = options || { guess: true };
         var ex = options.e || null;
 
-        return new traceStack.StackTracer(options).run(ex);
+        return new traceStack.StackTracer(options).trace(ex);
     }
+    /**
+     * Creates and returns a monitored value/function that will run a stack trace
+     * every time it is accessed or called.
+     *
+     * @param value The initial or current value to store.
+     * @param {function} callback A valid function with the following signature:
+     *     function(callback)
+     * @param {traceStack.StackTracer} A valid StackTracer object. If not provided,
+     *     a new one will be supplied.
+     * @return The generated monitor function.
+     *
+     * @example var varName = traceStack.monitor(someValue, function(stack){console.log(stack)})
+     * @example var varName = new traceStack.StackTracer({}).monitor(someValue, function(stack){console.log(stack)}, tracer)
+     */
+    traceStack.monitor = function(value, callback, tracer) {
+        var myInstrumentation;
+
+        if ('function' !== typeof callback)
+            throw new TypeError('Callback must be a valid function')
+        if (!(arguments[arguments.length - 1] instanceof traceStack.StackTracer))
+            tracer = new traceStack.StackTracer;
+
+        if (value.stopMonitoring)
+            value = value.stopMonitoring();
+
+        myInstrumentation = 'function' === typeof value ? value : accessor;
+        Object.defineProperty(monitorAccess, 'stopMonitoring', {
+            configurable: false,
+            value: stopMonitoring
+        });
+        return monitor;
+
+        function monitorAccess() {
+            callback.call(this, tracer.trace());
+            return myInstrumentation.apply(this, arguments);
+        }
+
+        function accessor(newValue) {
+            if ('undefined' !== typeof newValue)
+                value = newValue;
+            return value;
+        }
+
+        function stopMonitoring() {
+            return value;
+        }
+    };
 
     var StackParser = (function(Class) {
-        /**
-         *
-         */
         Class.create = function(options) {
             var myCfg = options || {},
                 key = myCfg.key || 'stack',
@@ -360,7 +404,7 @@
              *    traceStack will create one internally.
              * @expose 
              */
-            this.run = function(ex) {
+            this.trace = function(ex) {
                 var out,
                     // We only chop the beginning if we generate the error...
                     shift = !!ex ? 0 : 3,
@@ -389,18 +433,29 @@
                 }
                 return out;
             };
-
         };
 
-        /** @expose */
-        Class.prototype = {
-            'monitor': function(value, callback) {
-                return new StackMonitor(value, callback, this);
+        Object.defineProperties(Class.prototype, {
+            'constructor': {
+                writable: false,
+                configurable:false,
+                value:Class
             },
-        };
-        Object.defineProperty(Class.prototype, 'constructor', {
-            value:Class,
-            writable: false
+            /**
+             * Creates and returns a new StackMonitor object using this tracer's
+             * configuration.
+             *
+             * @param The initial value of variable/property
+             * @param {function} The monitor callback to call when accessed.
+             */
+            'monitor': {
+                enumerable: true,
+                configurable: false,
+                writable: false,
+                value: function(value, callback) {
+                    return traceStack.monitor(value, callback, this);
+                }
+            }
         });
 
         /** 
@@ -551,51 +606,6 @@
         return Class;
     }(evilClass('StackEntry')));
 
-    var StackMonitor = (function(Class){
-        Class.create = function(value, callback, tracer) {
-            var myInstrumentation;
-
-            if ('function' !== typeof callback)
-                throw new TypeError('Callback must be a valid function')
-            if (!(arguments[arguments.length - 1] instanceof traceStack.StackTracer))
-                tracer = new traceStack.StackTracer;
-
-            if (value.stopMonitoring)
-                value = value.stopMonitoring();
-
-            myInstrumentation = 'function' === typeof value ? value : accessor;
-            Object.defineProperty(monitor, 'stopMonitoring', {
-                configurable: false,
-                value: stopMonitoring
-            });
-            return monitor;
-
-            function monitor() {
-                callback.call(this, tracer.run());
-                return myInstrumentation.apply(this, arguments);
-            }
-
-            function accessor(newValue) {
-                if ('undefined' !== typeof newValue)
-                    value = newValue;
-                return value;
-            }
-
-            function stopMonitoring() {
-                return value;
-            }
-        };
-        
-        Object.defineProperties(Class.prototype, { 
-            'constructor': {
-                value:Class,
-                writable: false
-            }
-        });
-
-        return Class;
-    }(evilClass('StackMonitor')));
-    traceStack.StackMonitor = StackMonitor;
     /**
     * Given arguments array as a String, substituting type names for non-string types.
     *
