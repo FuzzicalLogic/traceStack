@@ -121,8 +121,7 @@ In most cases, embedding the lite version is as simple as placing the code direc
 
 #### Why does traceStack Lite not support certain environments?
 
-As developers, we always have to make these hard decisions. The fact is, frequently, we are extremely supportive of other browsers when it comes to actual production code. This library is for developers who are actively developing or debugging code. Our standards should be set higher when trying to maintain a quality of code and we should be using the tools that are going to make it easier to do our jobs, not harder. An error stack is easier; an advanced error stack is even more so. Browsers and environments that do not have either of these are detrimental to our process.
-
+As developers, we always have to make these hard decisions. The fact is, frequently, we are extremely supportive of other browsers when it comes to actual production code. This library is for developers who are actively developing or debugging code. If a browser does not have a error stack, then we have to use non strict mode methods of finding that information. This means that strict mode libraries cannot embed the Lite version due to the way that strict mode works.
 
 [1]: https://github.com/eriwen/javascript-stacktrace
 [2]: https://github.com/FuzzicalLogic/traceStack/blob/master/CHANGELOG.md
