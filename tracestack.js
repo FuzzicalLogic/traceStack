@@ -401,7 +401,7 @@
              * 
              * @expose 
              */
-            'trace': function(context, property, callback) {
+            'traceProperty': function(context, property, callback) {
                 context = context || global;
                 if (!(property in context))
                     throw new TypeError('Cannot read property "' + property + '" of ' + context);
@@ -422,6 +422,30 @@
                 if ('function' !== typeof prop)
                     context[property]._instrumented.original = prop;
                 return this;
+            },
+
+            'traceValue': function(value, callback) {
+                var fnTrace,
+                    newValue = value,
+                    fnProp = 'function' === typeof value 
+                           ? value 
+                           : function(val) { 
+                               if (val) 
+                                   newValue = val;
+                               return newValue; 
+                           };
+
+                if (value._tracer)
+                    value._tracer.stop(value);
+                fnTrace = function trace() {
+                    callback.call(this, fnTrace._tracer.run());
+                    return fnTrace._instrumented.apply(this, arguments);
+                };
+                fnTrace._instrumented = fnProp;
+                fnTrace._tracer = this;
+                if ('function' !== typeof value) 
+                    fnTrace.original = value;
+                return fnTrace;
             },
 
             /**
