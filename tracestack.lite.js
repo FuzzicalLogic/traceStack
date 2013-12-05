@@ -50,6 +50,7 @@
  */
 /* global module, exports, define */
 (function(global) {
+    'use strict'
     /** 
      * Creates the returned object. This is provided internally to allow for
      * use of internally shared functions. 
@@ -85,13 +86,67 @@
         options = options || { guess: true };
         var ex = options.e || null;
 
-        return new traceStack.StackTracer(options).run(ex);
+        return new traceStack.StackTracer(options).trace(ex);
     }
 
-    var StackParser = (function(Class) {
+    /**
+     * Creates and returns a monitored value/function that will run a stack trace
+     * every time it is accessed or called.
+     *
+     * @expose
+     * 
+     * @param value The initial or current value to store.
+     * @param {function} callback A valid function with the following signature:
+     *     function(callback)
+     * @param {traceStack.StackTracer} A valid StackTracer object. If not provided,
+     *     a new one will be supplied.
+     * @return The generated monitor function.
+     *
+     * @example var varName = traceStack.monitor(someValue, function(stack){console.log(stack)})
+     * @example var varName = new traceStack.StackTracer({}).monitor(someValue, function(stack){console.log(stack)}, tracer)
+     */
+    traceStack.monitor = function(value, callback, tracer) {
+        var myInstrumentation;
+
+        if ('function' !== typeof callback)
+            throw new TypeError('Callback must be a valid function')
+        if (!(arguments[arguments.length - 1] instanceof traceStack.StackTracer))
+            tracer = new traceStack.StackTracer;
+
+        if (value.stopMonitoring)
+            value = value.stopMonitoring();
+
+        myInstrumentation = 'function' === typeof value ? value : accessor;
+        Object.defineProperty(monitorAccess, 'stopMonitoring', {
+            configurable: false,
+            value: stopMonitoring
+        });
+        return monitorAccess;
+
+        function monitorAccess() {
+            callback.call(this, tracer.trace());
+            return myInstrumentation.apply(this, arguments);
+        }
+
         /**
-         *
+         * This is a standard getter/setter for values that are not functions.
          */
+        function accessor(newValue) {
+            if ('undefined' !== typeof newValue)
+                value = newValue;
+            return value;
+        }
+
+        /**
+         * Returns the original value that was passed to monitor.
+         */
+        function stopMonitoring() {
+            return value;
+        }
+    };
+
+
+    var StackParser = (function(Class) {
         Class.create = function(options) {
             var myCfg = options || {},
                 key = myCfg.key || 'stack',
@@ -301,8 +356,6 @@
             }
         };
 
-
-
     /** 
      * An automatic tracer to get a stack trace each time a given object property 
      * is accessed.
@@ -327,15 +380,15 @@
         Class.create = function(options) {
             // Handle options internally, so that each StackTracer may have it owns options.
             var myCfg = options || {},
-                myLimit = (myCfg.limit && myCfg.limit > 0)
-                        ? myCfg.limit
-                        : 0,
                 myMode = ((!!myCfg.mode) && (myCfg.mode in formatters))
                        ? myCfg.mode
                        : ourMode,
                 myFormatter = (myMode === ourMode)
                             ? ourFormatter
                             : formatters[myMode];
+            this.limit = (myCfg.limit && myCfg.limit > 0)
+                    ? myCfg.limit
+                    : 0;
 
             /** 
              *
@@ -343,19 +396,26 @@
              *    traceStack will create one internally.
              * @expose 
              */
-            this.run = function(ex) {
+            this.trace = function(ex) {
                 var out,
                     // We only chop the beginning if we generate the error...
                     shift = !!ex ? 0 : 3,
                     // This will be passed to the parser function...
-                    limit = !!!myLimit ? 0 : myLimit + shift,
-                    err = !!ex ? ex : createException();
+                    limit = !!!this.limit ? 0 : this.limit + shift,
+                    err = myMode === 'other'
+                        ? arguments.callee.caller.caller
+                        : !!ex
+                            ? ex
+                            : createException();
 
                 try {
                     out = ('function' === typeof myFormatter ? myFormatter(err, limit) : myFormatter.parse(err, limit));
-
-                    out = !!!myLimit ? out.slice(shift) : out.slice(shift, limit)
-                    
+                    if (myMode === 'other') {
+                        out = !!!this.limit ? out : out.slice(0, this.limit)
+                    }
+                    else {
+                        out = !!!this.limit ? out.slice(shift) : out.slice(shift, limit)
+                    }
                     out = out.map(function(v, k, a) { return new StackEntry(v) });
                     // Allow user to get a user-readable string
                     out.toString = function(msg) { return (msg ? msg + '\n\t' : '') + this.join('\n\t') };
@@ -365,58 +425,30 @@
                 }
                 return out;
             };
-
         };
 
-        /** @expose */
-        Class.prototype = {
-            /** @expose */
-            'class': Class,
-            /**
-             * @todo Verifiy that this does not create leaks. 
-             * 
-             * @expose 
-             */
-            'trace': function(context, property, callback) {
-                context = context || global;
-                if (!(property in context))
-                    throw new TypeError('Cannot read property "' + property + '" of ' + context);
-
-                // Make sure to stop any previous StackTracers
-                if (context[property]._tracer)
-                    context[property]._tracer.stop(context, property);
-
-                var prop = context[property],
-                    fnProp = 'function' === typeof prop ? prop : function(val) { return prop };
-
-                context[property] = function trace() {
-                    callback.call(this, context[property]._tracer.run());
-                    return context[property]._instrumented.apply(this, arguments);
-                };
-                context[property]._tracer = this;
-                context[property]._instrumented = fnProp;
-                if ('function' !== typeof prop)
-                    context[property]._instrumented.original = prop;
-                return this;
+        Object.defineProperties(Class.prototype, {
+            'constructor': {
+                writable: false,
+                configurable: false,
+                value: Class
             },
-
             /**
-             * @todo Verifiy that this does not create leaks. 
-             * 
-             * @expose 
+             * Creates and returns a new StackMonitor object using this tracer's
+             * configuration.
+             *
+             * @param The initial value of variable/property
+             * @param {function} The monitor callback to call when accessed.
              */
-            'stop': function(context, property) {
-                context = context || global;
-                if (!(property in context))
-                    throw new TypeError('Cannot read property "' + property + '" of ' + context);
-
-                var ref, fn = context[property];
-                if ('function' === typeof fn && (ref = fn._instrumented)) {
-                    context[property] = 'original' in ref ? ref.original : ref;
+            'monitor': {
+                enumerable: true,
+                configurable: false,
+                writable: false,
+                value: function(value, callback) {
+                    return traceStack.monitor(value, callback, this);
                 }
-                return this;
             }
-        };
+        });
 
         /** 
          * Creates an exception guaranteed to give stack info and immediately 
@@ -454,12 +486,13 @@
             /** @expose */this.file = file;
             /** @expose */this.line = line;
             /** @expose */this.column = col;
-
-            /** @todo Make this async(?) */
             /** @expose */this.func = (!!func) ? func : ANON;
         };
 
-        /** @expose */Class.prototype['class'] = Class;
+        Object.defineProperty(Class.prototype, 'constructor', {
+            value: Class,
+            writable: false
+        });
         /** 
          * Gets a user-readable string representation of the StackEntry
          *
@@ -470,8 +503,183 @@
             return 'at ' + this.func + (this.file ? ' (' + this.file + (this.line ? ':' + this.line : '') + (this.line ? ':' + this.column : '') + ')' : '');
         };
 
+        /**
+         *
+         * @param {StackEntry} The entry to find the function for.
+         * @return {(string|boolean)} The function's name or False if it could not be found.
+         */
+        function guessFunctionName(entry) {
+            var file = entry.file,
+                line = entry.line,
+                col = entry.column;
+
+            if (!!file && isSameDomain(file) && line) {
+                try {
+                    return findFunctionName(getSource(file), line);
+                }
+                catch (e) {
+                    ;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Given a URL, check if it is in the same domain to determine if we can use
+         * AJAX to get the source code. The previous version would return true and 
+         * cause an error if the protocol was not an allowable AJAX protocol.
+         *
+         * @param {string} url URL of the file to check
+         * @return {boolean} True if we can make an AJAX request
+         */
+        function isSameDomain(url) {
+            // location is not defined in some local environments
+            // AJAX is only supported for the http: protocol
+            return typeof location !== "undefined"
+                && (location.protocol === 'http:' || location.protocol === 'https:')
+                && url.indexOf(location.hostname) !== 1;
+        }
+
+        function findFunctionName(source, lineNo) {
+            // FIXME findFunctionName fails for compressed source
+            // (more than one function on the same line)
+            // function {name}({args}) m[1]=name m[2]=args
+            var reFunctionDeclaration = /function\s+([^(]*?)\s*\(([^)]*)\)/;
+            // {name} = function ({args}) TODO args capture
+            // /['"]?([0-9A-Za-z_]+)['"]?\s*[:=]\s*function(?:[^(]*)/
+            var reFunctionExpression = /['"]?([$_A-Za-z][$_A-Za-z0-9]*)['"]?\s*[:=]\s*function\b/;
+            // {name} = eval()
+            var reFunctionEvaluation = /['"]?([$_A-Za-z][$_A-Za-z0-9]*)['"]?\s*[:=]\s*(?:eval|new Function)\b/;
+            // Walk backwards in the source lines until we find
+            // the line which matches one of the patterns above
+            var code = "", line, maxLines = Math.min(lineNo, 20), m, commentPos;
+            for (var i = 0; i < maxLines; ++i) {
+                // lineNo is 1-based, source[] is 0-based
+                line = source[lineNo - i - 1];
+                commentPos = line.indexOf('//');
+                if (commentPos >= 0) {
+                    line = line.substr(0, commentPos);
+                }
+                // TODO check other types of comments? Commented code may lead to false positive
+                if (line) {
+                    code = line + code;
+                    m = reFunctionExpression.exec(code);
+                    if (m && m[1]) {
+                        return m[1];
+                    }
+                    m = reFunctionDeclaration.exec(code);
+                    if (m && m[1]) {
+                        return m[1];
+                    }
+                    m = reFunctionEvaluation.exec(code);
+                    if (m && m[1]) {
+                        return m[1];
+                    }
+                }
+            }
+            return '(?)';
+        }
+
         return Class;
     }(evilClass('StackEntry')));
+
+    /**
+    * Given arguments array as a String, substituting type names for non-string types.
+    *
+    * @param {(Arguments|Array)} args
+    * @return {String} stringified arguments
+    */
+    function stringifyArguments(args) {
+        var result = [];
+        var slice = Array.prototype.slice;
+        for (var i = 0; i < args.length; ++i) {
+            var arg = args[i];
+            if (arg === undefined) {
+                result[i] = 'undefined';
+            } else if (arg === null) {
+                result[i] = 'null';
+            } else if (arg.constructor) {
+                if (arg.constructor === Array) {
+                    if (arg.length < 3) {
+                        result[i] = '[' + stringifyArguments(arg) + ']';
+                    } else {
+                        result[i] = '[' + stringifyArguments(slice.call(arg, 0, 1)) + '...' + stringifyArguments(slice.call(arg, -1)) + ']';
+                    }
+                } else if (arg.constructor === Object) {
+                    result[i] = '#object';
+                } else if (arg.constructor === Function) {
+                    result[i] = '#function';
+                } else if (arg.constructor === String) {
+                    result[i] = '"' + arg + '"';
+                } else if (arg.constructor === Number) {
+                    result[i] = arg;
+                }
+            }
+        }
+        return result.join(',');
+    }
+
+    /**
+    * Get source code from given URL if in the same domain. 
+    *
+    * @param url <String> JS source URL
+    * @return <Array> Array of source code lines
+    */
+    function getSource(url) {
+        // TODO reuse source from script tags?
+        if (!(url in sourceCache)) {
+            sourceCache[url] = ajax(url).split('\n');
+        }
+        return sourceCache[url];
+    }
+
+    /**
+     * @return the text from a given URL
+     */
+    function ajax(url) {
+        var req = createXMLHTTPObject();
+        if (req) {
+            try {
+                req.open('GET', url, false);
+                //req.overrideMimeType('text/plain');
+                //req.overrideMimeType('text/javascript');
+                req.send(null);
+                //return req.status == 200 ? req.responseText : '';
+                return req.responseText;
+            } catch (e) {
+            }
+        }
+        return '';
+    }
+
+    /**
+    * Try XHR methods in order and store XHR factory.
+    *
+    * @return <Function> XHR function or equivalent
+    */
+    function createXMLHTTPObject() {
+        var xmlhttp,
+            XMLHttpFactories = [
+                function() {
+                    return new XMLHttpRequest();
+                }, function() {
+                    return new ActiveXObject('Msxml2.XMLHTTP');
+                }, function() {
+                    return new ActiveXObject('Msxml3.XMLHTTP');
+                }, function() {
+                    return new ActiveXObject('Microsoft.XMLHTTP');
+                }
+            ];
+        for (var i = 0; i < XMLHttpFactories.length; i++) {
+            try {
+                xmlhttp = XMLHttpFactories[i]();
+                // Use memoization to cache the factory
+                createXMLHTTPObject = XMLHttpFactories[i];
+                return xmlhttp;
+            } catch (e) {
+            }
+        }
+    }
 
     /** 
      * Creates and returns a eval'd named ClassModule function.
@@ -486,7 +694,7 @@
     function evilClass(name) {
         return eval('(function(){'
                 + 'return function ' + name + '(){'
-                    + 'this["class"].create.apply(this,Array.prototype.slice.call(arguments))'
+                    + 'return this.constructor.create.apply(this,Array.prototype.slice.call(arguments))'
                 + '}'
             + '}());');
     }
