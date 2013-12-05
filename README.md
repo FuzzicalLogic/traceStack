@@ -77,8 +77,6 @@ The `StackTracer` has its own `trace()` method so that you may run it whenever y
 
     tracer.trace();
 
-Additionally, you may use this `StackTracer` to monitor variable, properties and functions. The `monitor` method is discussed below.
-
 ##### Public Properties
 
 * `limit`: The maximum levels of the stack to retrieve.
