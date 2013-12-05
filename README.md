@@ -69,72 +69,57 @@ In contrast, `getStack().toString('Stack was retrieved') would produce output si
 
 ### Usage (`traceStack.StackTracer`)
 
-There may be cases where you would like stack information whenever a specific method or property is called. In these cases, `traceStack` also provides a `StackTracer` object that may be used to gather the information when the property or method is accessed. Additionally, each `StackTracer` can optionally accept the options for `traceStack()`. This allows for different `StackTracers` to differently given circumstance or requirement.
+`traceStack` also allows you to store a reference to a `StackTracer` object. This allows you to reuse the `StackTracer` with the same configuration without having to 'do all the math' again.
 
-First get a new Tracer object:
+    var tracer = new trace.StackTracer({option});
 
-    var tracer = new traceStack.StackTracer([options]);
-    
-Then, add as many (previously defined) properties and methods to the `Tracer` by calling `trace()`. Tracing a method does not stop the method from firing. Tracing a property will turn the property into a readonly getter with a return value of the value of that property for the time period that it is being traced.
+The `StackTracer` has its own `trace()` method so that you may run it whenever you would like.
 
-    tracer.trace(object, 'propertyname|methodname', callback);
-    
-Callbacks have one argument: `stack`. This is a returned array of `StackInfo` objects.
+    tracer.trace();
 
-Should you wish to stop tracing and revert to original behavior, simply call the `stop()` method:
+Additionally, you may use this `StackTracer` to monitor variable, properties and functions. The `monitor` method is discussed below.
 
-    tracer.stop(object, 'propertyname|methodname');
-    
+### Usage (`traceStack.monitor`)
 
+There may be cases where you would like stack information whenever a variable or property has been accessed or when a function or method has been called. In these cases, `traceStack` also provides a `monitor()` function. This will replace the variable, property or function with a functionally wrapped version. Depending upon your needs, there are several ways to start monitoring...
 
+On the fly:
 
-#### Examples of `StackTracers`
+    // Any of the below will work
+    var monitored = traceStack(value, function(stack) { });
+    object.monitored = traceStack(value, function(stack) { });
 
-##### Single `StackTracer`
+With a special configuration:
 
-The below code defines an object, method and property and adds them to a `StackTracer`. The callback function then outputs the line number of the call whenever the property or method is accessed.
+    // Any of the below will work
+    var monitored = new traceStack.StackTracer({limit:1}).monitor(value, function(stack){ });
+    object.monitored = new traceStack.StackTracer({limit:1}).monitor(value, function(stack){ });
+    var monitored = traceStack.monitor(value, function(stack){ }, new traceStack.StackTracer({limit:1}));
+    object.monitored = traceStack.monitor(value, function(stack){ }, new traceStack.StackTracer({limit:1}));
 
-    var widget = {
-        foo: 1,
-        bar: function() {
-            console.log('bar was called');
-        }
-    };
-    
-    // Output the current line to the console.
-    function printLine(stack) {
-        console.log(stack[0].line);
-    };
-    
-    var tracer = new traceStack.StackTracer();
-    tracer.trace(widget, 'foo', printLine).trace(widget,'bar',printLine);
+Or with a shared `StackTracer` object:
 
-##### Multiple `StackTracer`s
+    var tracer = new traceStack.StackTracer({limit:1});
 
-This example assumes that you may want only the top level of a stack for some functions, but the full stack for others. It is assumed that the full stack would attempt to resolve function names, but that the top level tracer does not need anonymous functions.
+    // Any of the below will work
+    var monitored = tracer.monitor(value, function(stack){ });
+    object.monitored = tracer.monitor(value, function(stack){ });
+    var monitored = traceStack.monitor(value, function(stack){ }, tracer);
+    object.monitored = tracer.monitor(value, function(stack){ });
 
-    var widget = {
-        foo: 1,
-        bar: function() {
-            console.log('bar was called');
-        }
-    };
-    
-    // Output the current line to the console.
-    function printStack(stack) {
-        console.log(stack);
-    };
-    
-    var topTracer = new traceStack.StackTracer({limit:1, guess:false}),
-		fullTracer = new traceStack.StackTracer();
-    topTracer.trace(widget, 'foo', printStack);
-	fullTracer.trace(widget, 'bar', printStack);
+For use in libraries, the returned monitor also provides a `stopMonitoring` method. This method technically simply returns the unmodified value. However, in order to allow for detection it has been named accordingly. In order to get a reference to an unmodified version:
+
+    var unmonitored = monitored.stopMonitoring();
+
+To stop monitoring the value completely:
+
+    monitored = monitored.stopMonitoring();
 
 ### Embedding the Lite version
 
 In most cases, embedding the lite version is as simple as placing the code directly within your own module, namespace or class. In some cases, you will want to change the last line `(this)` to refer to different level. This may even be done quite easily with the minified version, though typically you will want to minify it using your minification process instead.
 
-### Why do traceStack not support certain browsers?
+### Why does traceStack Lite not support certain browsers?
 
 As developers, we always have to make these hard decisions. The fact is, frequently, we are extremely supportive of other browsers when it comes to actual production code. This library is for developers who are actively developing or debugging code. Our standards should be set higher when trying to maintain a quality of code and we should be using the tools that are going to make it easier to do our jobs, not harder. A stack is easier; an advanced stack is even more so. Browsers and environments that do not have either of these are detrimental to our process.
 
