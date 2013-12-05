@@ -67,9 +67,9 @@ In contrast, `getStack().toString('Stack was retrieved') would produce output si
 		at functionName: (myotherscript.js:156:12)
 		at eval code
 
-### Usage (`traceStack.StackTracer`)
+#### `StackTracer`s
 
-`traceStack` also allows you to store a reference to a `StackTracer` object. This allows you to reuse the `StackTracer` with the same configuration without having to 'do all the math' again.
+When you call `traceStack()`, it conveniently creates a one-use `StackTracer` and runs its `trace()` method. There are several circumstances where reusing a `StackTracer` might be beneficial. To alleviate this, `traceStack` allows you to store a reference to a `StackTracer` object. This allows you to reuse the `StackTracer` with the same configuration without having to construct a new object over and over again.
 
     var tracer = new trace.StackTracer({option});
 
@@ -78,6 +78,16 @@ The `StackTracer` has its own `trace()` method so that you may run it whenever y
     tracer.trace();
 
 Additionally, you may use this `StackTracer` to monitor variable, properties and functions. The `monitor` method is discussed below.
+
+##### Public Properties
+
+* `limit`: The maximum levels of the stack to retrieve.
+* `guess`: Whether to automatically guess anonymous function names.
+
+##### Public Methods
+
+* `trace()`: Uses this `StackTracer`'s options to run a stack trace.
+* `monitor(value, callback)`: Uses this `StackTracer`'s options to monitor a variable/property access or function calls. See more on monitoring below.
 
 ### Usage (`traceStack.monitor`)
 
