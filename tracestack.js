@@ -394,85 +394,9 @@
 
         /** @expose */
         Class.prototype = {
-            /**
-             * @todo Verifiy that this does not create leaks. 
-             * 
-             * @expose 
-             */
-            'traceProperty': function(context, property, callback) {
-                context = context || global;
-                if (!(property in context))
-                    throw new TypeError('Cannot read property "' + property + '" of ' + context);
-
-                // Make sure to stop any previous StackTracers
-                if (context[property]._tracer)
-                    context[property]._tracer.stop(context, property);
-
-                var prop = context[property],
-                    fnProp = 'function' === typeof prop ? prop : function(val) { return prop };
-
-                context[property] = function trace() {
-                    callback.call(this, context[property]._tracer.run());
-                    return context[property]._instrumented.apply(this, arguments);
-                };
-                context[property]._tracer = this;
-                context[property]._instrumented = fnProp;
-                if ('function' !== typeof prop)
-                    context[property]._instrumented.original = prop;
-                return this;
-            },
-
-            'traceValue': function(value, callback) {
-                var fnProp = 'function' === typeof value 
-                           ? value 
-                           : function(newValue) { 
-                               if ('undefined' !== typeof newValue) 
-                                   value = newValue;
-                               return value; 
-                           };
-
-                if (value._tracer)
-                    value._tracer.stop(value);
-                Object.defineProperty(tracer, '_tracer', {
-                    value: this,
-                    writable:false
-                });
-                Object.defineProperty(tracer, '_instrumented', {
-                    value: fnProp,
-                    writable: false
-                });
-                //fnTrace._instrumented = fnProp;
-                //fnTrace._tracer = this;
-                //if ('function' !== typeof value) 
-                    //fnTrace.original = value;
-                return tracer;
-
-                function tracer() {
-                    callback.call(this, tracer._tracer.run());
-                    return tracer._instrumented.apply(this, arguments);
-                }
-            },
-
             'monitor': function(value, callback) {
                 return new StackMonitor(value, callback, this);
             },
-
-            /**
-             * @todo Verifiy that this does not create leaks. 
-             * 
-             * @expose 
-             */
-            'stop': function(context, property) {
-                context = context || global;
-                if (!(property in context))
-                    throw new TypeError('Cannot read property "' + property + '" of ' + context);
-
-                var ref, fn = context[property];
-                if ('function' === typeof fn && (ref = fn._instrumented)) {
-                    context[property] = 'original' in ref ? ref.original : ref;
-                }
-                return this;
-            }
         };
         Object.defineProperty(Class.prototype, 'constructor', {
             value:Class,
