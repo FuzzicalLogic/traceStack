@@ -115,6 +115,19 @@ To stop monitoring the value completely:
 
     monitored = monitored.stopMonitoring();
 
+#### Important Note:
+
+When you begin monitoring a value that is not a function or method, that value now becomes a unified getter/setter until it is no longer monitored. This means that it must be accessed in the following way:
+
+To get the value:
+
+    monitor();
+
+To set the value:
+
+    monitored(newValue);
+
+If the monitored value is initially a function, you may access it as you normally would. This even includes methods that use `this`.
 ### Embedding the Lite version
 
 In most cases, embedding the lite version is as simple as placing the code directly within your own module, namespace or class. In some cases, you will want to change the last line `(this)` to refer to different level. This may even be done quite easily with the minified version, though typically you will want to minify it using your minification process instead.

@@ -127,12 +127,18 @@
             return myInstrumentation.apply(this, arguments);
         }
 
+        /**
+         * This is a standard getter/setter for values that are not functions.
+         */
         function accessor(newValue) {
             if ('undefined' !== typeof newValue)
                 value = newValue;
             return value;
         }
 
+        /**
+         * Returns the original value that was passed to monitor.
+         */
         function stopMonitoring() {
             return value;
         }
