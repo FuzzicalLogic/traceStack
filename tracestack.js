@@ -393,19 +393,19 @@
         Class.create = function(options) {
             // Handle options internally, so that each StackTracer may have it owns options.
             var myCfg = options || {},
-                myGuess = ('undefined' === typeof myCfg.guess)
-                        ? true
-                        : !!myCfg.guess,
-                myLimit = (myCfg.limit && myCfg.limit > 0) 
-                        ? myCfg.limit
-                        : 0,
                 myMode = ((!!myCfg.mode) && (myCfg.mode in formatters))
                        ? myCfg.mode
                        : ourMode,
                 myFormatter = (myMode === ourMode)
                             ? ourFormatter
                             : formatters[myMode];
-            
+            this.limit = (myCfg.limit && myCfg.limit > 0)
+                    ? myCfg.limit
+                    : 0;
+            this.guess = ('undefined' === typeof myCfg.guess)
+                    ? true
+                    : !!myCfg.guess,
+
             /** 
              *
              * @param {Error} ex The error to use when tracing. If not provided,
@@ -417,7 +417,7 @@
                     // We only chop the beginning if we generate the error...
                     shift = !!ex ? 0 : 3,
                     // This will be passed to the parser function...
-                    limit = !!!myLimit ? 0 : myLimit + shift,
+                    limit = !!!this.limit ? 0 : this.limit + shift,
                     err = myMode === 'other'
                         ? arguments.callee.caller.caller
                         : !!ex
@@ -427,12 +427,12 @@
                 try {
                     out = ('function' === typeof myFormatter ? myFormatter(err, limit) : myFormatter.parse(err, limit));
                     if (myMode === 'other') {
-                        out = !!!myLimit ? out : out.slice(0, myLimit)
+                        out = !!!this.limit ? out : out.slice(0, this.limit)
                     }
                     else {
-                        out = !!!myLimit ? out.slice(shift) : out.slice(shift, limit)
+                        out = !!!this.limit ? out.slice(shift) : out.slice(shift, limit)
                     }
-                    out = out.map(function(v, k, a) { return new StackEntry(v, myGuess) });
+                    out = out.map(function(v, k, a) { return new StackEntry(v, this.guess) });
                     // Allow user to get a user-readable string
                     out.toString = function(msg) { return (msg ? msg + '\n\t' : '') + this.join('\n\t') };
                 }

@@ -1,3 +1,15 @@
+### Version 0.5.0-Alpha
+
+* `traceStack` now has a `monitor` method. This allows the ability to monitor without having to create a `StackTracer`.
+* The `StackTracer` method .trace()` has been renamed to `.monitor()`. This is to keep up with semantics and conform to the `traceStack` method.
+* `traceStack.monitor()` and `StackTracer.monitor()` now only require a value to begin monitoring. However, this requires an assignment. The new usage is: `variable = traceStack.monitor(value, callback[, StackTracer]);`
+* `StackTracer` objects used to have an ambiguous `run()` method. This has been renamed to `trace()`.
+* Monitored values can now be get and set.
+* Monitored values and methods now have a `stopMonitoring` method. This allows any variable to be assigned to its return value, including itself.
+* `.monitor` performance was signicantly improved.
+* Monitored values had the ability to circumvent protections when used maliciously. The information that they use is now localized.
+* `StackTracer` objects now have public properties: `limit` (both versions) and `guess` (full version). They are still subject to the same rules. `mode` was not made public to avoid instability.
+
 ### Initial Version (0.2)
 
 The project underwent a significant rewrite. Due to the nature of the usage changes, the project name was changed. Below is an accounting of all the the changes.
