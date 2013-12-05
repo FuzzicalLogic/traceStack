@@ -119,9 +119,9 @@ To stop monitoring the value completely:
 
 In most cases, embedding the lite version is as simple as placing the code directly within your own module, namespace or class. In some cases, you will want to change the last line `(this)` to refer to different level. This may even be done quite easily with the minified version, though typically you will want to minify it using your minification process instead.
 
-### Why does traceStack Lite not support certain browsers?
+#### Why does traceStack Lite not support certain environments?
 
-As developers, we always have to make these hard decisions. The fact is, frequently, we are extremely supportive of other browsers when it comes to actual production code. This library is for developers who are actively developing or debugging code. Our standards should be set higher when trying to maintain a quality of code and we should be using the tools that are going to make it easier to do our jobs, not harder. A stack is easier; an advanced stack is even more so. Browsers and environments that do not have either of these are detrimental to our process.
+As developers, we always have to make these hard decisions. The fact is, frequently, we are extremely supportive of other browsers when it comes to actual production code. This library is for developers who are actively developing or debugging code. Our standards should be set higher when trying to maintain a quality of code and we should be using the tools that are going to make it easier to do our jobs, not harder. An error stack is easier; an advanced error stack is even more so. Browsers and environments that do not have either of these are detrimental to our process.
 
 
 [1]: https://github.com/eriwen/javascript-stacktrace
