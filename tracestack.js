@@ -394,8 +394,6 @@
 
         /** @expose */
         Class.prototype = {
-            /** @expose */
-            'class': Class,
             /**
              * @todo Verifiy that this does not create leaks. 
              * 
@@ -425,27 +423,38 @@
             },
 
             'traceValue': function(value, callback) {
-                var fnTrace,
-                    newValue = value,
-                    fnProp = 'function' === typeof value 
+                var fnProp = 'function' === typeof value 
                            ? value 
-                           : function(val) { 
-                               if (val) 
-                                   newValue = val;
-                               return newValue; 
+                           : function(newValue) { 
+                               if ('undefined' !== typeof newValue) 
+                                   value = newValue;
+                               return value; 
                            };
 
                 if (value._tracer)
                     value._tracer.stop(value);
-                fnTrace = function trace() {
-                    callback.call(this, fnTrace._tracer.run());
-                    return fnTrace._instrumented.apply(this, arguments);
-                };
-                fnTrace._instrumented = fnProp;
-                fnTrace._tracer = this;
-                if ('function' !== typeof value) 
-                    fnTrace.original = value;
-                return fnTrace;
+                Object.defineProperty(tracer, '_tracer', {
+                    value: this,
+                    writable:false
+                });
+                Object.defineProperty(tracer, '_instrumented', {
+                    value: fnProp,
+                    writable: false
+                });
+                //fnTrace._instrumented = fnProp;
+                //fnTrace._tracer = this;
+                //if ('function' !== typeof value) 
+                    //fnTrace.original = value;
+                return tracer;
+
+                function tracer() {
+                    callback.call(this, tracer._tracer.run());
+                    return tracer._instrumented.apply(this, arguments);
+                }
+            },
+
+            'monitor': function(value, callback) {
+                return new StackMonitor(value, callback, this);
             },
 
             /**
@@ -465,6 +474,10 @@
                 return this;
             }
         };
+        Object.defineProperty(Class.prototype, 'constructor', {
+            value:Class,
+            writable: false
+        });
 
         /** 
          * Creates an exception guaranteed to give stack info and immediately 
@@ -520,7 +533,10 @@
             /** @expose */this.func = (!!func) ? func : ANON;
         };
 
-        /** @expose */Class.prototype['class'] = Class;
+        Object.defineProperty(Class.prototype, 'constructor', {
+            value:Class,
+            writable: false
+        });
         /** 
          * Gets a user-readable string representation of the StackEntry
          *
@@ -611,6 +627,51 @@
         return Class;
     }(evilClass('StackEntry')));
 
+    var StackMonitor = (function(Class){
+        Class.create = function(value, callback, tracer) {
+            var myInstrumentation;
+
+            if ('function' !== typeof callback)
+                throw new TypeError('Callback must be a valid function')
+            if (!(arguments[arguments.length - 1] instanceof traceStack.StackTracer))
+                tracer = new traceStack.StackTracer;
+
+            if (value.stopMonitoring)
+                value = value.stopMonitoring();
+
+            myInstrumentation = 'function' === typeof value ? value : accessor;
+            Object.defineProperty(monitor, 'stopMonitoring', {
+                configurable: false,
+                value: stopMonitoring
+            });
+            return monitor;
+
+            function monitor() {
+                callback.call(this, tracer.run());
+                return myInstrumentation.apply(this, arguments);
+            }
+
+            function accessor(newValue) {
+                if ('undefined' !== typeof newValue)
+                    value = newValue;
+                return value;
+            }
+
+            function stopMonitoring() {
+                return value;
+            }
+        };
+        
+        Object.defineProperties(Class.prototype, { 
+            'constructor': {
+                value:Class,
+                writable: false
+            }
+        });
+
+        return Class;
+    }(evilClass('StackMonitor')));
+    traceStack.StackMonitor = StackMonitor;
     /**
     * Given arguments array as a String, substituting type names for non-string types.
     *
@@ -722,7 +783,7 @@
     function evilClass(name) {
         return eval('(function(){'
                 + 'return function ' + name + '(){'
-                    + 'this["class"].create.apply(this,Array.prototype.slice.call(arguments))'
+                    + 'return this.constructor.create.apply(this,Array.prototype.slice.call(arguments))'
                 + '}'
             + '}());');
     }
