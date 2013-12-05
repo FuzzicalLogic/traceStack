@@ -363,8 +363,6 @@
             }
         };
 
-
-
     /** 
      * An automatic tracer to get a stack trace each time a given object property 
      * is accessed.
