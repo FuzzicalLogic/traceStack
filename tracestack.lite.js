@@ -402,9 +402,7 @@
                     shift = !!ex ? 0 : 3,
                     // This will be passed to the parser function...
                     limit = !!!this.limit ? 0 : this.limit + shift,
-                    err = myMode === 'other'
-                        ? arguments.callee.caller.caller
-                        : !!ex
+                    err = !!ex
                             ? ex
                             : createException();
 
